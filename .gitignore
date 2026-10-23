@@ -1,0 +1,4 @@
+# Configuração local, com usuário e senha do banco.
+config.php
+
+.DS_Store
