@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-// A ordem do mural é uma preferência de quem usa o navegador. Sem login, o
-// servidor não distingue as pessoas, por isso ela fica em cookie.
+// A ordem do mural é uma preferência de quem usa o navegador, e fica em
+// cookie. Com o login, ela poderia ir para o banco, por usuário; continua no
+// cookie para manter o comportamento das etapas anteriores (decisão D10).
 
 const COOKIE_DA_ORDEM = 'mini_mural_ordem';
 

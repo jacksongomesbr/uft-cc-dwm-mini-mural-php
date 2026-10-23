@@ -12,13 +12,37 @@ instalar PHP, servidor web e PostgreSQL, use o [Docker](#rodar-com-docker).
 
 ## Funcionalidades
 
-- Publicar um recado de até 280 caracteres, com contador e aviso de erro.
-- Ver a lista de recados com hora e o resumo de publicados e arquivados.
+- Criar conta, entrar e sair. Todo o mural exige login.
+- Publicar um recado de até 280 caracteres, com contador e aviso de erro. O
+  recado nasce privado; marcado como público, ele pode ser lido sem login, pelo
+  endereço dele.
+- Ver a lista de recados com hora, autor e o resumo de publicados e arquivados.
 - Abrir o detalhe de um recado, com data e hora por extenso.
 - Arquivar um recado pela lista ou pelo detalhe.
 - Escolher, em Sobre, a ordem do mural, guardada no navegador.
 
 Como cada uma funciona, e por quê, está em [docs/](docs/README.md).
+
+## Etapas
+
+O projeto evolui por etapas. Cada ramo congela o estado do código no fim de uma
+etapa, e o `main` sempre aponta para a mais recente.
+
+| Ramo | Etapa | Conteúdo |
+|---|---|---|
+| `etapa-1-monolito` | 1: Monólito | Mural sem login, instalado direto com Apache ou nginx e PostgreSQL. |
+| `etapa-2-docker` | 2: Docker | O mesmo mural, com um `compose.yaml` para rodar na própria máquina. |
+| `etapa-3-login` | 3: Login | Cadastro, login e saída; todo o mural exige login, e o recado pode ser público. |
+| `main` | (a mais recente) | Igual ao ramo da etapa mais recente. |
+
+Para estudar uma etapa, troque de ramo, por exemplo `git switch etapa-1-monolito`.
+
+Cada etapa tem o próprio esquema de banco, e trocar de ramo não muda o banco.
+Recrie o banco ao trocar de etapa, ou as páginas falham com erros como
+`relation "usuarios" does not exist`. Com Docker, rode `docker compose down -v`
+antes do `docker compose up --build`. Na instalação direta, rode o
+`sql/schema.sql` da etapa nova e, se quiser, o `sql/seed.sql`. Nos dois casos,
+os dados da etapa anterior se perdem.
 
 ## O que você precisa
 
@@ -50,8 +74,9 @@ docker compose up --build
 ```
 
 Quando o terminal mostrar o Apache pronto, abra <http://localhost:8081>. Na
-primeira vez, o PostgreSQL roda o `sql/schema.sql` e o `sql/seed.sql`, e o
-mural já aparece com os recados de exemplo.
+primeira vez, o PostgreSQL roda o `sql/schema.sql` e o `sql/seed.sql`. Entre
+com o usuário de exemplo, `exemplo`, senha `senha-de-exemplo`, ou crie uma
+conta.
 
 O terminal fica preso mostrando os logs dos dois contêineres, inclusive os
 erros do PHP. Para parar, use Ctrl+C. Os comandos abaixo rodam em outro
@@ -76,7 +101,9 @@ Três detalhes mudam em relação à instalação direta:
   `config.php` local não entra na imagem. A senha de `compose.yaml` serve só
   para a sua máquina.
 - **Mudança no código:** a imagem guarda uma cópia do código. Depois de mudar um
-  arquivo, rode `docker compose up --build` de novo.
+  arquivo, rode `docker compose up --build` de novo. O PHP guarda as sessões em
+  arquivos dentro do contêiner, então um contêiner novo desconecta todo mundo,
+  e é preciso entrar de novo.
 - **Mudança no esquema:** o PostgreSQL só roda o `schema.sql` com o volume de
   dados vazio. Depois de mudar o esquema, rode `docker compose down -v`, que
   apaga os recados, e suba de novo.
@@ -146,10 +173,12 @@ ele. O `psql` pede a senha do passo anterior:
 psql -h localhost -U mini_mural -d mini_mural -f sql/schema.sql
 ```
 
-O `schema.sql` começa com `DROP TABLE`: rodá-lo de novo apaga todos os recados.
-É assim que o projeto muda de esquema, já que não usa migrations.
+O `schema.sql` começa com `DROP TABLE`: rodá-lo de novo apaga todos os
+usuários e recados. É assim que o projeto muda de esquema, já que não usa
+migrations.
 
-Os recados de exemplo são opcionais:
+O usuário e os recados de exemplo são opcionais. O usuário é `exemplo`, com a
+senha `senha-de-exemplo`; use-o só na sua máquina:
 
 ```bash
 psql -h localhost -U mini_mural -d mini_mural -f sql/seed.sql
@@ -260,25 +289,42 @@ php tests/regras_test.php
 
 Com o site no ar, exercite o mural no navegador:
 
-1. Clique em Publicar com o campo vazio. A mensagem aparece e o foco volta ao
+1. Abra <http://localhost:8081>. Sem login, o navegador vai para a tela de
+   entrar.
+2. Crie uma conta em "Criar conta". Um nome que já existe, mesmo com outras
+   maiúsculas, ou uma senha com menos de 8 caracteres mostram a mensagem no
    campo.
-2. Publique um recado. Ele aparece no topo da lista e o resumo muda.
-3. Arquive um recado pela lista e outro pelo detalhe. Os dois passam a mostrar
+3. Clique em Publicar com o campo vazio. A mensagem aparece e o foco volta ao
+   campo.
+4. Publique um recado privado e outro com a caixa "Público" marcada. Os dois
+   aparecem no topo da lista com o seu nome.
+5. Arquive um recado pela lista e outro pelo detalhe. Os dois passam a mostrar
    "Arquivado".
-4. Abra <http://localhost:8081/recado.php?id=999>. A página diz que o recado não
-   está mais no mural.
-5. Em Sobre, escolha "Mais antigos primeiro", salve e volte ao Mural. A ordem se
+6. Em Sobre, escolha "Mais antigos primeiro", salve e volte ao Mural. A ordem se
    inverte e continua assim depois de recarregar.
+7. Clique em Sair e abra o endereço do recado público. Ele aparece sem o botão
+   de arquivar. O endereço do recado privado leva à tela de entrar.
 
-Confira também que o servidor recusa um texto inválido mesmo sem o
-JavaScript. O comando abaixo envia um recado vazio direto ao PHP e mostra o
-código da resposta, que deve ser `422`:
+Confira também pelo terminal. Sem login, o mural responde `303`, um
+redirecionamento para a tela de entrar:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -d 'texto=' http://localhost:8081/
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://localhost:8081/
 ```
 
-E que o servidor não entrega nada fora de `public/`. A resposta deve ser `404`:
+Com os exemplos carregados, o recado 3 é público e responde `200` sem login:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' 'http://localhost:8081/recado.php?id=3'
+```
+
+Um POST sem o token CSRF recebe `403`, mesmo com usuário e senha certos:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -d 'nome=exemplo&senha=senha-de-exemplo' http://localhost:8081/login.php
+```
+
+E o servidor não entrega nada fora de `public/`. A resposta deve ser `404`:
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8081/config.php
@@ -296,16 +342,21 @@ mini-mural/
 │   └── config.php         # Configuração lida das variáveis de ambiente
 ├── public/                # Raiz de documentos do servidor web
 │   ├── index.php          # Mural: lista, resumo e formulário (GET e POST)
-│   ├── recado.php         # Detalhe de um recado
+│   ├── recado.php         # Detalhe de um recado; o público abre sem login
 │   ├── arquivar.php       # Ação de arquivar (só POST)
 │   ├── sobre.php          # Descrição e ordem do mural
+│   ├── login.php          # Entrar
+│   ├── cadastro.php       # Criar conta
+│   ├── sair.php           # Sair (só POST)
 │   ├── css/estilo.css
 │   └── js/mural.js        # Contador e aviso de erro do formulário
 ├── src/                   # Funções do projeto; o navegador não alcança
 │   ├── inicializar.php    # Incluído no topo de toda página
 │   ├── banco.php          # Conexão PDO
 │   ├── recados.php        # Todo o SQL de recados
-│   ├── validacao.php      # Regra do texto do recado
+│   ├── usuarios.php       # Todo o SQL de usuários
+│   ├── sessao.php         # Sessão de login e token CSRF
+│   ├── validacao.php      # Regras do recado e do cadastro
 │   ├── preferencias.php   # Cookie da ordem
 │   ├── formatacao.php     # Datas e fuso
 │   ├── http.php           # Leitura do pedido e redirecionamento
@@ -315,8 +366,8 @@ mini-mural/
 │   ├── apache.conf        # Site para Apache com mod_php
 │   └── nginx.conf         # Site para nginx com PHP-FPM
 ├── sql/
-│   ├── schema.sql         # Cria a tabela (apaga a anterior)
-│   └── seed.sql           # Recados de exemplo
+│   ├── schema.sql         # Cria as tabelas (apaga as anteriores)
+│   └── seed.sql           # Usuário e recados de exemplo
 ├── tests/regras_test.php  # Testes das regras sem banco
 └── docs/                  # Decisões, funcionamento e diagramas
 ```
@@ -338,6 +389,10 @@ e o log do PHP-FPM em `/var/log/` (nginx). Com Docker, leia
 | `403 Forbidden` | O usuário `www-data` não consegue ler a pasta do projeto | Confira o passo 2 |
 | O navegador baixa o `.php` em vez de mostrar a página | O PHP não está ligado ao servidor | Instale `libapache2-mod-php` (Apache) ou confira o bloco `location ~ \.php$` (nginx) |
 | Texto "Arquivo config.php não encontrado" | Passo 4 não feito | Copie `config.exemplo.php` para `config.php` |
+| Texto "Formulário expirado ou enviado de fora do mural" (403) | A sessão acabou entre abrir a página e enviar o formulário, e o token mudou | Recarregue a página e envie de novo |
+| Volta para a tela de entrar a cada página | O navegador não guarda o cookie `mini_mural_sessao` | Confira se os cookies estão permitidos para `localhost` |
+| `relation "usuarios" does not exist` no log | O banco tem o esquema de uma etapa anterior | Rode o `schema.sql` de novo, que apaga os dados |
+| `relation "usuarios" does not exist` no log (Docker) | O volume `dados` veio de uma etapa anterior, e o PostgreSQL não roda o `schema.sql` de novo | `docker compose down -v` e suba outra vez; os dados se perdem |
 | `Cannot connect to the Docker daemon` (Docker) | O Docker não está ligado | Abra o Docker Desktop, ou ligue o serviço do Docker |
 | `port is already allocated` (Docker) | Outro programa já usa a porta 8081, como o Apache da instalação direta | Desligue o outro programa, ou troque `"8081:80"` em `compose.yaml` por outra porta |
 | Mudança no esquema não aparece (Docker) | O volume de dados já existia, e o PostgreSQL não roda o `schema.sql` de novo | `docker compose down -v` e suba outra vez |

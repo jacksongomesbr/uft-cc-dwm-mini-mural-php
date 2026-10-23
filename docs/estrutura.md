@@ -25,12 +25,17 @@ flowchart TD
     public --> recado["recado.php: detalhe"]
     public --> arquivar["arquivar.php: ação de arquivar"]
     public --> sobre["sobre.php: descrição e ordem"]
+    public --> login["login.php: entrar"]
+    public --> cadastro["cadastro.php: criar conta"]
+    public --> sair["sair.php: sair"]
     public --> css["css/estilo.css"]
     public --> js["js/mural.js"]
 
     src --> inicializar["inicializar.php: carrega tudo"]
     src --> banco["banco.php: conexão PDO"]
-    src --> recados["recados.php: todo o SQL"]
+    src --> recados["recados.php: SQL de recados"]
+    src --> usuarios["usuarios.php: SQL de usuários"]
+    src --> sessao["sessao.php: login e token CSRF"]
     src --> validacao["validacao.php: regra do texto"]
     src --> preferencias["preferencias.php: cookie da ordem"]
     src --> formatacao["formatacao.php: datas"]
@@ -50,8 +55,8 @@ flowchart TD
 
     classDef servida fill:#dbeafe,stroke:#1d4ed8
     classDef privada fill:#f5f5f4,stroke:#57534e
-    class public,index,recado,arquivar,sobre,css,js servida
-    class src,inicializar,banco,recados,validacao,preferencias,formatacao,http,visao,templates,config privada
+    class public,index,recado,arquivar,sobre,login,cadastro,sair,css,js servida
+    class src,inicializar,banco,recados,usuarios,sessao,validacao,preferencias,formatacao,http,visao,templates,config privada
 ```
 
 Em azul, o que o navegador alcança por endereço. Em cinza, o que só o PHP lê.
@@ -112,21 +117,26 @@ flowchart LR
 | `public/recado.php` | Valida o `id`, busca o recado e desenha o detalhe ou o 404 | A tela de detalhe muda |
 | `public/arquivar.php` | Exige POST, arquiva e redireciona | O destino depois de arquivar muda |
 | `public/sobre.php` | Mostra a descrição e grava a ordem no cookie | A tela Sobre muda |
+| `public/login.php` | Confere nome e senha e abre a sessão | A tela de entrar muda |
+| `public/cadastro.php` | Valida o cadastro, cria o usuário e já entra | A tela de cadastro ou as regras de conta mudam |
+| `public/sair.php` | Exige POST e encerra a sessão | Raramente |
 | `public/css/estilo.css` | Cores, espaços e tamanhos, definidos como variáveis CSS no topo | A aparência muda |
 | `public/js/mural.js` | Contador de caracteres e aviso de erro antes do envio | O comportamento do formulário no navegador muda |
-| `src/inicializar.php` | Carrega `config.php`, fuso, funções e o tratador de exceção | Entra um arquivo novo em `src/` |
+| `src/inicializar.php` | Carrega `config.php`, fuso, funções e o tratador de exceção, abre a sessão e confere o token CSRF de todo POST | Entra um arquivo novo em `src/` |
 | `src/banco.php` | `conectarAoBanco()` | A forma de conectar muda |
-| `src/recados.php` | Todo o SQL de recados e `resumirRecados()` | Uma consulta muda |
-| `src/validacao.php` | `validarRecado()`, `LIMITE_DO_RECADO` e `normalizarQuebrasDeLinha()` | A regra do texto muda |
+| `src/recados.php` | Todo o SQL de recados e `resumirRecados()` | Uma consulta de recados muda |
+| `src/usuarios.php` | `conferirLogin()` e `criarUsuario()`, com o SQL de usuários | Uma consulta de usuários muda |
+| `src/sessao.php` | `iniciarSessao()`, `usuarioLogado()`, `entrar()`, `sair()`, `exigirLogin()` e as funções do token CSRF | A forma de guardar o login muda |
+| `src/validacao.php` | `validarRecado()`, `normalizarQuebrasDeLinha()`, `normalizarNome()` e `validarCadastro()` | A regra do recado ou do cadastro muda |
 | `src/preferencias.php` | `lerOrdem()`, `salvarOrdem()` e a lista `ORDENS` | Surge outra preferência ou outra ordem |
 | `src/formatacao.php` | Conversão de fuso e formatos de hora | O formato das datas muda |
 | `src/http.php` | `lerCampo()`, `lerId()`, `exigirPost()` e `redirecionar()` | A leitura do pedido muda |
 | `src/visao.php` | `e()`, `plural()`, `cabecalho()`, `rodape()` e `recadoNaoEncontrado()` | O esqueleto das páginas muda |
-| `src/templates/` | Topo com navegação, rodapé, página 404 e página de erro | O esqueleto das páginas muda |
+| `src/templates/` | Topo com navegação (que muda conforme o login), rodapé, página 404 e página de erro | O esqueleto das páginas muda |
 | `servidor/apache.conf` | Site do Apache: porta, `DocumentRoot` em `public/` e logs | A pasta ou a porta do site muda |
 | `servidor/nginx.conf` | Site do nginx: porta, `root` em `public/` e repasse ao PHP-FPM | A pasta, a porta ou o socket do PHP-FPM muda |
-| `sql/schema.sql` | Tabela, restrições e índice | O modelo de dados muda |
-| `sql/seed.sql` | Os três recados de exemplo | Os exemplos mudam |
+| `sql/schema.sql` | Tabelas `usuarios` e `recados`, restrições e índice | O modelo de dados muda |
+| `sql/seed.sql` | O usuário `exemplo` e os três recados de exemplo | Os exemplos mudam |
 | `tests/regras_test.php` | Testes das funções que não usam banco | Uma regra muda |
 | `config.exemplo.php` | Modelo da configuração local | Entra uma configuração nova |
 | `compose.yaml` | Os serviços `app` e `banco`, a porta 8081, as variáveis de ambiente e o volume de dados | Entra um serviço ou muda uma senha de desenvolvimento |

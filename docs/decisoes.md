@@ -8,6 +8,10 @@ quem vier mexer no código depois.
 O objetivo do projeto orienta todas elas: mostrar a versão mais simples de uma
 aplicação web com banco de dados, legível para quem está no 4º ou 5º período.
 
+Os números não mudam de uma etapa para outra, para você poder comparar os
+ramos. Quando uma etapa revê uma decisão anterior, a decisão antiga ganha uma
+nota que aponta para a nova, e a nova entra no fim do documento.
+
 ## Arquitetura
 
 ### D1. Monólito com HTML montado no servidor
@@ -121,6 +125,9 @@ aplicação web com banco de dados, legível para quem está no 4º ou 5º perí
 
 ### D9. Recados no banco, compartilhados por todos
 
+> **Revista na etapa 3 (D24):** os recados agora são compartilhados entre os
+> usuários logados, e cada recado guarda o autor.
+
 - **Decisão:** os recados ficam na tabela `recados` do PostgreSQL.
 - **Alternativa descartada:** guardar os recados na sessão do PHP (`$_SESSION`)
   ou em um arquivo JSON no servidor.
@@ -133,6 +140,9 @@ aplicação web com banco de dados, legível para quem está no 4º ou 5º perí
   arquiva qualquer recado.
 
 ### D10. Ordem do mural em cookie
+
+> **Mantida na etapa 3:** com login, a ordem poderia ir para o banco, por
+> usuário. Ela continua no cookie para não mudar o comportamento da etapa 2.
 
 - **Decisão:** a preferência de ordem fica no cookie `mini_mural_ordem`.
 - **Alternativa descartada:** uma tabela `preferencias` no banco.
@@ -227,6 +237,9 @@ aplicação web com banco de dados, legível para quem está no 4º ou 5º perí
 
 ### D18. Sem proteção CSRF
 
+> **Substituída na etapa 3 por D21:** com login, a proteção CSRF passou a ser
+> obrigatória, como a consequência abaixo já previa.
+
 - **Decisão:** os formulários não levam token anti-CSRF.
 - **Alternativa descartada:** token aleatório em sessão, conferido em cada POST.
 - **Motivo:** sem login, um site malicioso que envie um formulário em nome de
@@ -260,3 +273,89 @@ aplicação web com banco de dados, legível para quem está no 4º ou 5º perí
   com o volume vazio, e mudar o esquema exige `docker compose down -v`, que
   apaga os recados. As senhas ficam escritas em `compose.yaml`, o que serve
   para a máquina de desenvolvimento e não para produção.
+
+## Login (etapa 3)
+
+### D20. Login com a sessão do PHP
+
+- **Decisão:** o login guarda o usuário em `$_SESSION`. O PHP grava os dados no
+  servidor e entrega ao navegador só um identificador, no cookie
+  `mini_mural_sessao`, com `HttpOnly` e `SameSite=Lax`. O identificador é
+  trocado no login (`session_regenerate_id`), e a saída apaga a sessão e o
+  cookie. As funções ficam em `src/sessao.php`.
+- **Alternativa descartada:** um token assinado no próprio cookie, como JWT, ou
+  a autenticação HTTP Basic do navegador.
+- **Motivo:** a sessão vem pronta no PHP e mostra a ideia central do login em
+  uma aplicação web: o servidor lembra quem é a pessoa entre um pedido e outro.
+  Com JWT, o projeto precisaria de uma biblioteca e de um jeito de invalidar o
+  token na saída. A autenticação Basic não tem tela de login nem botão de sair.
+- **Consequência aceita:** as sessões ficam em arquivos no servidor. Com mais de
+  um servidor, ou com um contêiner novo no Docker, as sessões se perdem e todos
+  precisam entrar de novo. Não há limite de tentativas de login: alguém pode
+  testar senhas à vontade, o que um sistema em produção precisaria impedir.
+
+### D21. Proteção CSRF com token na sessão
+
+- **Decisão:** cada sessão tem um token aleatório. Todo formulário POST o envia
+  em um campo oculto, e `src/inicializar.php` recusa com 403 qualquer POST sem o
+  token certo, antes de a página tratar o formulário. A saída também é um POST.
+- **Alternativa descartada:** conferir o token em cada página, ou confiar só no
+  `SameSite=Lax` do cookie de sessão.
+- **Motivo:** com login, um site malicioso pode fazer o navegador de quem está
+  logado publicar ou arquivar em nome dele. Conferir em um lugar só impede que
+  uma página nova esqueça a conferência. O `SameSite=Lax` já impede o envio do
+  cookie em POST vindo de outro site, mas depende de o navegador respeitar o
+  atributo, e o token protege mesmo quando ele falha.
+- **Consequência aceita:** todo `<form method="post">` precisa de
+  `<?= campoCsrf() ?>`; o formulário que esquecer recebe 403. Um formulário
+  aberto antes de a sessão expirar também recebe 403, e a pessoa precisa
+  recarregar a página.
+
+### D22. Senha guardada com `password_hash`
+
+- **Decisão:** a tabela `usuarios` guarda só o resultado de `password_hash`
+  (bcrypt, com sal aleatório), conferido com `password_verify`. A senha tem de 8
+  caracteres a 72 bytes. Nome inexistente e senha errada recebem a mesma
+  mensagem, e a conferência gasta o mesmo tempo nos dois casos. Os parâmetros
+  de senha levam `#[\SensitiveParameter]`.
+- **Alternativa descartada:** um hash simples, como `sha256`, calculado à mão, ou
+  regras de senha mais fortes, como exigir símbolos.
+- **Motivo:** um hash rápido deixa quem copiar a tabela testar uma quantidade
+  enorme de senhas em pouco tempo; o bcrypt é lento de propósito. O `password_hash` escolhe o
+  algoritmo e o sal sozinho. Mensagem e tempo iguais não revelam quais nomes
+  estão cadastrados. O `SensitiveParameter` tira a senha dos rastros de erro
+  que vão para o log.
+- **Consequência aceita:** o bcrypt ignora o que passa de 72 bytes, por isso o
+  limite existe e aparece na mensagem. As regras de senha são só de tamanho; o
+  projeto não confere senhas comuns.
+
+### D23. Nome de usuário em minúsculas e único no banco
+
+- **Decisão:** o PHP grava o nome em minúsculas, e a coluna `nome` é `UNIQUE`.
+  O cadastro tenta o `INSERT` e trata o erro 23505 do PostgreSQL como "nome já
+  existe". O `CHECK usuario_nome_valido` repete a regra de caracteres.
+- **Alternativa descartada:** conferir com um `SELECT` antes de inserir.
+- **Motivo:** dois cadastros com o mesmo nome ao mesmo tempo passariam os dois
+  pelo `SELECT`; só o `UNIQUE` do banco decide quem chegou primeiro. Gravar em
+  minúsculas impede "Ana" e "ana" como contas diferentes, e o login aceita o
+  nome digitado de qualquer jeito.
+- **Consequência aceita:** o nome aparece sempre em minúsculas. Acentos e
+  espaços ficam fora do nome de usuário.
+
+### D24. Tudo exige login, menos o recado público
+
+- **Decisão:** mural, Sobre, publicar e arquivar exigem login; quem não entrou
+  vai para `/login.php`. A exceção é o detalhe de um recado marcado como
+  público, que qualquer pessoa lê pelo endereço, sem botão de arquivar. Todo
+  recado nasce privado (`publico boolean DEFAULT false`), e a caixa "Público"
+  só existe no formulário de publicação. O recado guarda o autor (`autor_id`).
+  Qualquer usuário logado arquiva qualquer recado, como na etapa 2.
+- **Alternativa descartada:** mostrar a quem não entrou uma lista dos recados
+  públicos em `/`, ou deixar só o autor arquivar o próprio recado.
+- **Motivo:** o pedido da etapa é que todo o mural exija login e que o recado
+  público possa ser lido sem login. O detalhe por endereço atende a leitura
+  pública com a menor mudança, e arquivar continua com a regra da etapa 2.
+- **Consequência aceita:** quem não entrou só chega a um recado público se
+  receber o endereço dele. Um recado não muda de privado para público depois de
+  publicado. Um usuário com recados não pode ser apagado, por causa do
+  `REFERENCES` da coluna `autor_id`.

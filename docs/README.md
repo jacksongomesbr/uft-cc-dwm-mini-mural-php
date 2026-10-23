@@ -7,8 +7,11 @@ Para instalar e rodar, comece pelo [README da raiz](../README.md).
 |---|---|
 | [funcionamento.md](funcionamento.md) | O que a aplicação faz e qual o caminho de cada pedido entre navegador, servidor web, PHP e PostgreSQL |
 | [decisoes.md](decisoes.md) | Por que o projeto é assim: cada decisão com a alternativa descartada e a consequência aceita |
-| [modelo-de-dados.md](modelo-de-dados.md) | Tabela, restrições, ciclo de vida de um recado e as consultas feitas |
+| [modelo-de-dados.md](modelo-de-dados.md) | Tabelas, restrições, sessão, ciclo de vida de um recado e as consultas feitas |
 | [estrutura.md](estrutura.md) | Onde fica cada coisa e o que pode depender do quê |
+
+O projeto evolui por etapas, cada uma em um ramo; a tabela está no README da
+raiz. Esta documentação descreve a etapa do ramo em que você está.
 
 Os diagramas usam Mermaid. O GitHub e o VS Code, com a extensão de pré-visualização
 de Markdown, desenham os diagramas direto no arquivo.
@@ -19,6 +22,8 @@ O Mini Mural é uma aplicação web em que o servidor monta cada página. O
 navegador pede um endereço, o Apache ou o nginx entrega o pedido ao PHP, o PHP
 consulta o PostgreSQL e devolve HTML pronto. Publicar, arquivar e escolher a
 ordem são formulários comuns enviados por POST, seguidos de um redirecionamento.
+O login usa a sessão do PHP, e todo o mural exige login, menos a leitura de um
+recado marcado como público.
 O JavaScript só melhora o formulário de recado; sem ele, tudo continua
 funcionando. O projeto serve para ver, sem camadas de framework, o que um
 servidor web faz em cada pedido. Para rodar na própria máquina sem instalar

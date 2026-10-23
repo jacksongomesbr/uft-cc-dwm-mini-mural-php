@@ -20,17 +20,26 @@ nginx, o PHP-FPM é um processo separado, e o nginx fala com ele pelo protocolo
 FastCGI. Para o código do projeto, as duas formas são iguais.
 
 O navegador nunca fala com o banco. Todo acesso a dados passa pelo PHP, e é no
-PHP que mora a regra de negócio: o texto do recado tem de 1 a 280 caracteres,
-todo recado nasce publicado, e só um recado publicado pode ser arquivado.
+PHP que mora a regra de negócio: só quem entrou publica e arquiva, o texto do
+recado tem de 1 a 280 caracteres, todo recado nasce publicado e privado, e só
+um recado publicado pode ser arquivado.
 
 ## Funcionalidades
 
-São cinco funcionalidades: publicar, listar, abrir o detalhe, arquivar e
-escolher a ordem do mural.
+São seis funcionalidades: criar conta e entrar, publicar, listar, abrir o
+detalhe, arquivar e escolher a ordem do mural. Todas exigem login, menos a
+leitura de um recado público.
 
 ```mermaid
 flowchart LR
-    U(["Usuário"])
+    V(["Visitante sem login"])
+    U(["Usuário logado"])
+
+    subgraph conta ["Conta"]
+        C1["Criar conta: /cadastro.php"]
+        C2["Entrar: /login.php"]
+        C3["Sair: /sair.php"]
+    end
 
     subgraph mural ["Mural: /"]
         F1["Publicar recado"]
@@ -50,6 +59,12 @@ flowchart LR
         F9["Escolher a ordem do mural"]
     end
 
+    V --> C1
+    V --> C2
+    V -. "só recado público, sem arquivar" .-> F5
+    C1 -. "já entra na conta" .-> U
+    C2 --> U
+    U --> C3
     U --> F1
     U --> F2
     U --> F4
@@ -69,14 +84,19 @@ Cada arquivo de `public/` é uma página ou uma ação. O servidor web executa o
 arquivo `.php` cujo nome está no endereço. Quando nenhum arquivo corresponde,
 como em `/config.php` ou `/qualquer-coisa`, a resposta é 404.
 
-| Endereço | Método | O que faz | Resposta |
-|---|---|---|---|
-| `/` | GET | Mostra o formulário, o resumo e a lista na ordem do cookie | 200 com HTML |
-| `/` | POST | Valida e grava um recado novo | 303 para `/` se válido, 422 com a página e a mensagem se inválido |
-| `/recado.php?id=N` | GET | Mostra um recado | 200, ou 404 se o id não é inteiro ou não existe |
-| `/arquivar.php` | POST | Arquiva o recado `id` | 303 para a lista ou para o detalhe; 405 se chegar por GET |
-| `/sobre.php` | GET | Mostra a descrição e a ordem atual | 200 |
-| `/sobre.php` | POST | Grava a ordem no cookie | 303 para `/sobre.php?salvo=1`, ou 422 se a ordem não existe |
+| Endereço | Método | Login | O que faz | Resposta |
+|---|---|---|---|---|
+| `/` | GET | Sim | Mostra o formulário, o resumo e a lista na ordem do cookie | 200 com HTML |
+| `/` | POST | Sim | Valida e grava um recado novo, público ou privado | 303 para `/` se válido, 422 com a página e a mensagem se inválido |
+| `/recado.php?id=N` | GET | Só para recado privado | Mostra um recado | 200, ou 404 se o id não é inteiro ou não existe |
+| `/arquivar.php` | POST | Sim | Arquiva o recado `id` | 303 para a lista ou para o detalhe; 405 se chegar por GET |
+| `/sobre.php` | GET e POST | Sim | Mostra e grava a ordem no cookie | 200; 303 para `/sobre.php?salvo=1` depois de gravar |
+| `/login.php` | GET e POST | Não | Mostra o formulário e confere nome e senha | 303 para `/` se conferem, 422 se não |
+| `/cadastro.php` | GET e POST | Não | Cria a conta e já entra nela | 303 para `/` se criou, 422 com as mensagens se não |
+| `/sair.php` | POST | Sim | Apaga a sessão | 303 para `/login.php`; 405 se chegar por GET |
+
+Uma página que exige login manda quem não entrou para `/login.php`, com 303.
+Todo POST sem o token CSRF recebe 403 antes de chegar à página.
 
 ## O caminho de um pedido
 
@@ -100,9 +120,10 @@ sequenceDiagram
     participant P as PHP: public/index.php
     participant B as PostgreSQL
 
-    U->>N: abre http://localhost:8081/
-    N->>S: GET / com o cookie mini_mural_ordem
+    U->>N: abre http://localhost:8081/, já logado
+    N->>S: GET / com os cookies mini_mural_sessao e mini_mural_ordem
     S->>P: executa public/index.php
+    P->>P: exigirLogin() encontra o usuário na sessão
     P->>P: lerOrdem() escolhe ASC ou DESC
     P->>B: SELECT id, texto, criado_em, status ORDER BY criado_em
     B-->>P: linhas da tabela recados
@@ -224,6 +245,96 @@ sequenceDiagram
     Note over N,P: Daqui em diante, todo GET / leva o cookie, e a lista vem em ordem crescente
 ```
 
+## Login e acesso
+
+O login usa a sessão do PHP. No login, o PHP guarda o usuário em
+`$_SESSION['usuario']`, nos arquivos de sessão do servidor, e o navegador recebe
+só um identificador, no cookie `mini_mural_sessao`. Em cada pedido seguinte, o
+navegador devolve o cookie, `iniciarSessao()` recarrega `$_SESSION` e
+`usuarioLogado()` diz quem é a pessoa. As funções ficam em `src/sessao.php`.
+
+### Entrar
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Usuário
+    participant N as Navegador
+    participant P as PHP: public/login.php
+    participant B as PostgreSQL
+
+    U->>N: abre http://localhost:8081/
+    N->>P: GET / sem cookie de sessão
+    P-->>N: 303, Location: /login.php
+    N->>P: GET /login.php
+    P-->>N: 200 com o formulário, o token CSRF e o cookie mini_mural_sessao
+    U->>N: digita nome e senha e clica em Entrar
+    N->>P: POST /login.php com nome, senha, token e o cookie
+    P->>P: inicializar.php confere o token
+    P->>B: SELECT id, nome, senha_hash FROM usuarios WHERE nome = ...
+    B-->>P: a linha do usuário, ou nenhuma
+    P->>P: password_verify(senha, senha_hash)
+    alt nome e senha conferem
+        P->>P: session_regenerate_id(true) e $_SESSION usuario
+        P-->>N: 303, Location: / e cookie com identificador novo
+    else não conferem
+        P-->>N: 422 com Usuário ou senha incorretos.
+    end
+```
+
+A troca do identificador no login protege contra a **fixação de sessão**: se
+alguém conseguisse plantar um identificador no navegador da vítima antes do
+login, esse identificador deixa de valer quando ela entra.
+
+### Criar conta
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Usuário
+    participant N as Navegador
+    participant P as PHP: public/cadastro.php
+    participant B as PostgreSQL
+
+    U->>N: preenche usuário, senha e confirmação
+    N->>P: POST /cadastro.php com os campos e o token
+    P->>P: normalizarNome() e validarCadastro()
+    alt algum campo inválido
+        P-->>N: 422 com a mensagem embaixo de cada campo
+    else campos válidos
+        P->>B: INSERT INTO usuarios (nome, senha_hash) VALUES (..., password_hash(...))
+        alt nome já existe
+            B-->>P: erro 23505, violação de UNIQUE
+            P-->>N: 422 com Esse nome de usuário já existe.
+        else gravou
+            B-->>P: id e nome do usuário novo
+            P->>P: entrar() com o usuário novo
+            P-->>N: 303, Location: /
+        end
+    end
+```
+
+### Recado público e recado privado sem login
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor V as Visitante sem login
+    participant N as Navegador
+    participant P as PHP: public/recado.php
+    participant B as PostgreSQL
+
+    V->>N: abre o endereço de um recado
+    N->>P: GET /recado.php?id=N
+    P->>B: SELECT ... FROM recados JOIN usuarios WHERE recados.id = N
+    B-->>P: o recado, com publico e autor
+    alt recado público
+        P-->>N: 200 com o recado, sem o botão de arquivar
+    else recado privado
+        P-->>N: 303, Location: /login.php
+    end
+```
+
 ## Validação em três camadas
 
 A regra do texto do recado aparece em três lugares, com papéis diferentes.
@@ -252,12 +363,16 @@ A tabela liga cada risco ao cuidado que o evita e ao arquivo onde ele está.
 | Injeção de SQL | Todo valor vindo do pedido vai por parâmetro em `prepare` e `execute`; a ordem escolhe entre duas strings fixas | `src/recados.php` |
 | Script injetado em recado (XSS) | Todo texto passa por `e()`, que chama `htmlspecialchars`, antes de ir para o HTML | `src/visao.php` e páginas |
 | Redirecionamento para site externo | O destino depois de arquivar sai de duas opções fixas, nunca do pedido | `public/arquivar.php` |
-| Mudança de dados por link | Publicar, arquivar e salvar a ordem só aceitam POST | `src/http.php` (`exigirPost`, `ehPost`) |
+| Mudança de dados por link | Publicar, arquivar, salvar a ordem e sair só aceitam POST | `src/http.php` (`exigirPost`, `ehPost`) |
+| Formulário enviado por outro site (CSRF) | Token aleatório na sessão, conferido em todo POST com `hash_equals` | `src/sessao.php` e `src/inicializar.php` |
+| Senha vazada do banco | Só o hash do `password_hash` vai para a tabela | `src/usuarios.php` |
+| Descobrir quais nomes existem | Mesma mensagem e mesmo tempo para nome inexistente e senha errada | `conferirLogin()` em `src/usuarios.php` |
+| Fixação de sessão | Identificador trocado no login e `session.use_strict_mode` ligado | `src/sessao.php` |
+| Senha no log de erros | Parâmetros de senha com `#[\SensitiveParameter]` | `src/usuarios.php` e `src/validacao.php` |
 
-Ficou de fora a proteção contra CSRF, em que um site externo envia um
-formulário para o mural em nome de quem o visita. Sem login, o estrago possível
-é publicar ou arquivar um recado, e o token de formulário dobraria o código de
-cada página. A decisão está registrada em [decisoes.md](decisoes.md).
+Um risco ficou sem cuidado: não há limite de tentativas de login, e alguém
+pode testar senhas à vontade. A decisão D20, em [decisoes.md](decisoes.md),
+registra essa consequência.
 
 ## Com Docker
 
@@ -295,6 +410,10 @@ usuário e o banco `mini_mural` e executa os arquivos montados em
 `/docker-entrypoint-initdb.d`, primeiro o `schema.sql` e depois o `seed.sql`. A
 aplicação só liga depois que o banco responde ao `pg_isready`, conferido pelo
 `healthcheck` do `compose.yaml`.
+
+As sessões do PHP ficam em arquivos dentro do contêiner `app`. Um
+`docker compose up --build` cria um contêiner novo, sem esses arquivos, e todo
+mundo precisa entrar de novo. Os usuários e recados continuam no volume `dados`.
 
 ## Quando algo dá errado
 
