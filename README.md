@@ -7,7 +7,8 @@ Desenvolvimento WebMobile (UFT), feita como um monólito simples:
 - PHP no servidor, sem framework;
 - PostgreSQL como banco, com o esquema em um arquivo SQL.
 
-Não há Docker, Composer, migrations nem etapa de build.
+Não há Composer, migrations nem etapa de build. Para rodar na sua máquina sem
+instalar PHP, servidor web e PostgreSQL, use o [Docker](#rodar-com-docker).
 
 ## Funcionalidades
 
@@ -32,8 +33,57 @@ As duas funcionam igual para o projeto. A pasta `servidor/` tem a configuração
 pronta de cada uma, e a decisão D4, em [docs/decisoes.md](docs/decisoes.md),
 explica por que o projeto usa um servidor web de verdade.
 
-Os passos abaixo usam Debian ou Ubuntu, o sistema mais comum em servidores e
-nos laboratórios. A seção [No macOS](#no-macos) traz as diferenças.
+Os passos de instalação usam Debian ou Ubuntu, o sistema mais comum em
+servidores e nos laboratórios. A seção [No macOS](#no-macos) traz as
+diferenças.
+
+## Rodar com Docker
+
+O Docker sobe a aplicação em dois contêineres: `app`, com Apache, mod_php e o
+código, e `banco`, com o PostgreSQL. Você precisa só do Docker com o Compose
+(Docker Desktop, ou Docker Engine com o plugin `compose`).
+
+Na pasta do projeto:
+
+```bash
+docker compose up --build
+```
+
+Quando o terminal mostrar o Apache pronto, abra <http://localhost:8081>. Na
+primeira vez, o PostgreSQL roda o `sql/schema.sql` e o `sql/seed.sql`, e o
+mural já aparece com os recados de exemplo.
+
+O terminal fica preso mostrando os logs dos dois contêineres, inclusive os
+erros do PHP. Para parar, use Ctrl+C. Os comandos abaixo rodam em outro
+terminal, na mesma pasta.
+
+Para desligar e remover os contêineres, mantendo os recados:
+
+```bash
+docker compose down
+```
+
+Para apagar também os recados e voltar aos exemplos na próxima subida:
+
+```bash
+docker compose down -v
+```
+
+Três detalhes mudam em relação à instalação direta:
+
+- **Configuração:** o contêiner usa `docker/config.php`, que lê usuário, senha
+  e endereço do banco das variáveis de ambiente de `compose.yaml`. O seu
+  `config.php` local não entra na imagem. A senha de `compose.yaml` serve só
+  para a sua máquina.
+- **Mudança no código:** a imagem guarda uma cópia do código. Depois de mudar um
+  arquivo, rode `docker compose up --build` de novo.
+- **Mudança no esquema:** o PostgreSQL só roda o `schema.sql` com o volume de
+  dados vazio. Depois de mudar o esquema, rode `docker compose down -v`, que
+  apaga os recados, e suba de novo.
+
+O `compose.yaml` serve só para desenvolvimento: as senhas estão no próprio
+arquivo, e a conexão usa HTTP simples, sem HTTPS. A decisão D19, em [docs/decisoes.md](docs/decisoes.md),
+explica o que foi escolhido e por quê.
 
 ## Instalar no Debian ou no Ubuntu
 
@@ -239,6 +289,11 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8081/config.php
 ```text
 mini-mural/
 ├── config.exemplo.php     # Modelo da configuração; copie para config.php
+├── compose.yaml           # Serviços do Docker: app e banco
+├── docker/
+│   ├── Dockerfile         # Imagem com Apache, mod_php e pdo_pgsql
+│   ├── apache.conf        # Site do Apache dentro do contêiner
+│   └── config.php         # Configuração lida das variáveis de ambiente
 ├── public/                # Raiz de documentos do servidor web
 │   ├── index.php          # Mural: lista, resumo e formulário (GET e POST)
 │   ├── recado.php         # Detalhe de um recado
@@ -270,7 +325,8 @@ mini-mural/
 
 O detalhe de quase todo erro está no log. No Debian e no Ubuntu, leia
 `/var/log/apache2/mini-mural-erro.log` (Apache) ou `/var/log/nginx/error.log`
-e o log do PHP-FPM em `/var/log/` (nginx).
+e o log do PHP-FPM em `/var/log/` (nginx). Com Docker, leia
+`docker compose logs app`.
 
 | Sintoma | Causa provável | O que fazer |
 |---|---|---|
@@ -282,3 +338,6 @@ e o log do PHP-FPM em `/var/log/` (nginx).
 | `403 Forbidden` | O usuário `www-data` não consegue ler a pasta do projeto | Confira o passo 2 |
 | O navegador baixa o `.php` em vez de mostrar a página | O PHP não está ligado ao servidor | Instale `libapache2-mod-php` (Apache) ou confira o bloco `location ~ \.php$` (nginx) |
 | Texto "Arquivo config.php não encontrado" | Passo 4 não feito | Copie `config.exemplo.php` para `config.php` |
+| `Cannot connect to the Docker daemon` (Docker) | O Docker não está ligado | Abra o Docker Desktop, ou ligue o serviço do Docker |
+| `port is already allocated` (Docker) | Outro programa já usa a porta 8081, como o Apache da instalação direta | Desligue o outro programa, ou troque `"8081:80"` em `compose.yaml` por outra porta |
+| Mudança no esquema não aparece (Docker) | O volume de dados já existia, e o PostgreSQL não roda o `schema.sql` de novo | `docker compose down -v` e suba outra vez |

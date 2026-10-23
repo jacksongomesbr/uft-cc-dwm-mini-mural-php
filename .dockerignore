@@ -1,0 +1,6 @@
+# Fica fora da imagem: configuração local com senha, Git e o que não roda.
+config.php
+.git
+docs
+tests
+.DS_Store

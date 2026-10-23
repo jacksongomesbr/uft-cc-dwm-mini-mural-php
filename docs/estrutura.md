@@ -18,6 +18,8 @@ flowchart TD
     raiz --> tests["tests/"]
     raiz --> config["config.php (local, fora do Git)"]
     raiz --> exemplo["config.exemplo.php"]
+    raiz --> compose["compose.yaml: serviços app e banco"]
+    raiz --> docker["docker/"]
 
     public --> index["index.php: mural e publicar"]
     public --> recado["recado.php: detalhe"]
@@ -38,6 +40,10 @@ flowchart TD
 
     servidor --> apache["apache.conf: Apache com mod_php"]
     servidor --> nginx["nginx.conf: nginx com PHP-FPM"]
+
+    docker --> dockerfile["Dockerfile: imagem do app"]
+    docker --> dapache["apache.conf: site no contêiner"]
+    docker --> dconfig["config.php: lê o ambiente"]
 
     sql --> schema["schema.sql"]
     sql --> seed["seed.sql"]
@@ -123,3 +129,8 @@ flowchart LR
 | `sql/seed.sql` | Os três recados de exemplo | Os exemplos mudam |
 | `tests/regras_test.php` | Testes das funções que não usam banco | Uma regra muda |
 | `config.exemplo.php` | Modelo da configuração local | Entra uma configuração nova |
+| `compose.yaml` | Os serviços `app` e `banco`, a porta 8081, as variáveis de ambiente e o volume de dados | Entra um serviço ou muda uma senha de desenvolvimento |
+| `docker/Dockerfile` | Imagem do `app`: `php:8.4-apache`, `pdo_pgsql`, site e código | Muda a versão do PHP ou entra uma extensão |
+| `docker/apache.conf` | Site do Apache no contêiner, com os logs na saída do contêiner | A configuração do site muda |
+| `docker/config.php` | Configuração lida das variáveis de ambiente | Entra uma chave nova no `config.exemplo.php` |
+| `.dockerignore` | O que fica fora da imagem, como o `config.php` local | Surge outro arquivo que não deve ir para a imagem |

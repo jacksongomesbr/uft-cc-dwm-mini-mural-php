@@ -21,4 +21,5 @@ consulta o PostgreSQL e devolve HTML pronto. Publicar, arquivar e escolher a
 ordem são formulários comuns enviados por POST, seguidos de um redirecionamento.
 O JavaScript só melhora o formulário de recado; sem ele, tudo continua
 funcionando. O projeto serve para ver, sem camadas de framework, o que um
-servidor web faz em cada pedido.
+servidor web faz em cada pedido. Para rodar na própria máquina sem instalar
+PHP e PostgreSQL, há um `compose.yaml` com Docker (decisão D19).

@@ -259,10 +259,48 @@ formulário para o mural em nome de quem o visita. Sem login, o estrago possíve
 é publicar ou arquivar um recado, e o token de formulário dobraria o código de
 cada página. A decisão está registrada em [decisoes.md](decisoes.md).
 
+## Com Docker
+
+O `compose.yaml` monta as mesmas partes em contêineres. O contêiner `app` junta
+servidor web e PHP, como na instalação com Apache e mod_php, e o `banco` roda o
+PostgreSQL. O navegador continua falando só com o Apache, pela porta 8081 da
+sua máquina.
+
+```mermaid
+flowchart LR
+    navegador["Navegador"]
+
+    subgraph maquina ["Sua máquina"]
+        porta["localhost:8081"]
+        subgraph compose ["Rede do Compose"]
+            app["app: Apache + mod_php + código, porta 80"]
+            banco[("banco: PostgreSQL, porta 5432")]
+        end
+        volume[("volume dados")]
+    end
+
+    navegador --> porta
+    porta --> app
+    app -- "host banco" --> banco
+    banco --- volume
+```
+
+Dentro da rede do Compose, cada serviço é encontrado pelo próprio nome. Por
+isso o `docker/config.php` usa `banco` como endereço do PostgreSQL. Dentro do contêiner,
+`localhost` seria o próprio contêiner `app`. A porta 5432 do banco não é publicada na sua máquina: só o `app`
+chega a ela.
+
+Na primeira subida, com o volume `dados` vazio, a imagem do PostgreSQL cria o
+usuário e o banco `mini_mural` e executa os arquivos montados em
+`/docker-entrypoint-initdb.d`, primeiro o `schema.sql` e depois o `seed.sql`. A
+aplicação só liga depois que o banco responde ao `pg_isready`, conferido pelo
+`healthcheck` do `compose.yaml`.
+
 ## Quando algo dá errado
 
 Uma exceção não tratada, como o banco desligado ou um SQL com defeito, cai no
 tratador definido em `src/inicializar.php`. O detalhe técnico vai para o log de
 erros, e o navegador recebe uma página 500 sem informação interna. Com Apache,
 o log é o `mini-mural-erro.log` definido em `servidor/apache.conf`; com nginx,
-é o log do PHP-FPM. Se a página "Algo deu errado" aparecer, leia o log.
+é o log do PHP-FPM; com Docker, é a saída do contêiner, que `docker compose logs
+app` mostra. Se a página "Algo deu errado" aparecer, leia o log.

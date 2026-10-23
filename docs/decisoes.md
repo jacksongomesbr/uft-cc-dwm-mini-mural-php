@@ -236,3 +236,27 @@ aplicação web com banco de dados, legível para quem está no 4º ou 5º perí
 - **Consequência aceita:** o projeto não serve de modelo para uma aplicação com
   login. No dia em que houver usuário, o token passa a ser obrigatório, e o
   cookie de sessão deve ter `SameSite`.
+
+## Ambiente de desenvolvimento
+
+### D19. Docker com dois serviços: aplicação e banco
+
+- **Decisão:** `compose.yaml` sobe dois contêineres. O `app` usa a imagem
+  oficial `php:8.4-apache`, com Apache e mod_php, mais a extensão `pdo_pgsql`.
+  O `banco` usa a imagem oficial `postgres:18`, que executa o `schema.sql` e o
+  `seed.sql` na primeira partida.
+- **Alternativa descartada:** três contêineres, com nginx e PHP-FPM separados,
+  ou um contêiner só, com Apache, PHP e PostgreSQL juntos.
+- **Motivo:** no Apache com mod_php, servidor web e PHP são um processo só, e
+  cabem em um contêiner sem perder a divisão de D4. O banco fica separado
+  porque tem ciclo de vida próprio: os dados ficam em um volume e sobrevivem à
+  troca da imagem da aplicação. A imagem do PostgreSQL já sabe executar
+  arquivos SQL na primeira partida, então o esquema continua sendo o mesmo
+  `schema.sql` da instalação direta (D7).
+- **Consequência aceita:** o contêiner usa `docker/config.php`, que lê o banco
+  das variáveis de ambiente, no lugar do `config.php` local; os dois arquivos
+  precisam continuar com as mesmas chaves. A imagem guarda uma cópia do código,
+  então cada mudança pede `docker compose up --build`. O `schema.sql` só roda
+  com o volume vazio, e mudar o esquema exige `docker compose down -v`, que
+  apaga os recados. As senhas ficam escritas em `compose.yaml`, o que serve
+  para a máquina de desenvolvimento e não para produção.
