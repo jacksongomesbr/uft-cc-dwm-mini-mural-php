@@ -2,13 +2,24 @@
 
 declare(strict_types=1);
 
-// Mural: lista os recados, mostra o resumo e recebe o formulário de recado
-// novo. GET mostra a página; POST tenta publicar. Só para quem entrou.
+// Página inicial. Quem entrou vê o mural completo: lista, resumo e formulário
+// de recado novo; GET mostra a página e POST tenta publicar. Quem não entrou
+// vê só a lista dos recados públicos, para leitura.
 
 require __DIR__ . '/../src/inicializar.php';
 
-$usuario = exigirLogin();
+$usuario = usuarioLogado();
 $pdo = conectarAoBanco($configuracao['banco']);
+
+if ($usuario === null) {
+    // Publicar continua exigindo login.
+    if (ehPost()) {
+        redirecionar('/login.php');
+    }
+    $recados = listarRecadosPublicos($pdo, lerOrdem());
+    require __DIR__ . '/../src/templates/recados-publicos.php';
+    exit;
+}
 
 $texto = '';
 $publico = false;
@@ -91,8 +102,10 @@ cabecalho('Mural', 'mural');
                     </p>
 
                     <?php if ($arquivado): ?>
-                        <span class="etiqueta">Arquivado</span>
-                    <?php else: ?>
+                        <span class="etiqueta">
+                            Arquivado às <time datetime="<?= formatarIso($recado['arquivado_em']) ?>"><?= formatarHora($recado['arquivado_em']) ?></time>
+                        </span>
+                    <?php elseif (podeArquivar($recado, $usuario)): ?>
                         <form method="post" action="/arquivar.php">
                             <?= campoCsrf() ?>
                             <input type="hidden" name="id" value="<?= $recado['id'] ?>">

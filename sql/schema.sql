@@ -33,12 +33,16 @@ CREATE TABLE recados (
     autor_id  bigint      NOT NULL REFERENCES usuarios (id),
     -- Recado público pode ser lido sem login. Todo recado nasce privado.
     publico   boolean     NOT NULL DEFAULT false,
+    -- Instante do arquivamento. Vazio enquanto o recado está publicado.
+    arquivado_em timestamptz,
 
     -- As mesmas regras que o PHP confere. Se um defeito no PHP deixar passar
     -- um recado inválido, o banco recusa a gravação.
     CONSTRAINT recado_texto_preenchido CHECK (btrim(texto) <> ''),
     CONSTRAINT recado_texto_ate_280    CHECK (char_length(texto) <= 280),
-    CONSTRAINT recado_status_valido    CHECK (status IN ('publicado', 'arquivado'))
+    CONSTRAINT recado_status_valido    CHECK (status IN ('publicado', 'arquivado')),
+    -- Recado arquivado tem data de arquivamento, e recado publicado não tem.
+    CONSTRAINT recado_arquivado_com_data CHECK ((status = 'arquivado') = (arquivado_em IS NOT NULL))
 );
 
 -- A lista do mural sempre ordena por data de criação.

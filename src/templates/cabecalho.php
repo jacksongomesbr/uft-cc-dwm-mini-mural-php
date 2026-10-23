@@ -8,6 +8,7 @@ $paginas = $usuario !== null
         'sobre' => ['endereco' => '/sobre.php', 'rotulo' => 'Sobre'],
     ]
     : [
+        'publicos' => ['endereco' => '/', 'rotulo' => 'Recados públicos'],
         'entrar'   => ['endereco' => '/login.php', 'rotulo' => 'Entrar'],
         'cadastro' => ['endereco' => '/cadastro.php', 'rotulo' => 'Criar conta'],
     ];

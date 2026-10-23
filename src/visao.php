@@ -39,3 +39,11 @@ function recadoNaoEncontrado(): never
     require __DIR__ . '/templates/nao-encontrado.php';
     exit;
 }
+
+/** Responde 403 com uma página que explica a recusa e encerra. */
+function acessoNegado(string $mensagem): never
+{
+    http_response_code(403);
+    require __DIR__ . '/templates/proibido.php';
+    exit;
+}

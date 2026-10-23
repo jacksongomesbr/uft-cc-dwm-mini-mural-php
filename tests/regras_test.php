@@ -70,5 +70,15 @@ confere('confirmação diferente', array_keys(validarCadastro('ana', 'senha-boa-
 preg_match('/\$2y\$[^\']+/', file_get_contents(__DIR__ . '/../sql/seed.sql'), $achado);
 confere('senha do usuário de exemplo', password_verify('senha-de-exemplo', $achado[0] ?? ''), true);
 
+// podeArquivar e leituraPublica
+$recadoDaAna = ['autor_id' => 7, 'status' => 'publicado', 'publico' => true];
+confere('autor arquiva o próprio recado', podeArquivar($recadoDaAna, ['id' => 7, 'nome' => 'ana']), true);
+confere('outro usuário não arquiva', podeArquivar($recadoDaAna, ['id' => 8, 'nome' => 'bia']), false);
+confere('sem login não arquiva', podeArquivar($recadoDaAna, null), false);
+confere('recado arquivado não arquiva de novo', podeArquivar(['status' => 'arquivado'] + $recadoDaAna, ['id' => 7, 'nome' => 'ana']), false);
+confere('público e publicado tem leitura pública', leituraPublica($recadoDaAna), true);
+confere('privado não tem leitura pública', leituraPublica(['publico' => false] + $recadoDaAna), false);
+confere('público arquivado não tem leitura pública', leituraPublica(['status' => 'arquivado'] + $recadoDaAna), false);
+
 echo $falhas === 0 ? "\nTudo certo.\n" : "\n$falhas falha(s).\n";
 exit($falhas === 0 ? 0 : 1);
