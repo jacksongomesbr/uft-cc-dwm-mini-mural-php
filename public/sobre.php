@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/../src/inicializar.php';
 
+exigirLogin();
+
 $erro = null;
 
 if (ehPost()) {
@@ -35,13 +37,14 @@ cabecalho('Sobre', 'sobre');
         WebMobile, nesta versão como aplicação web em PHP com PostgreSQL.
     </p>
     <p class="apoio">
-        Os recados ficam no banco de dados e são os mesmos para todo navegador
-        que abrir o mural. A ordem escolhida abaixo fica guardada só neste
-        navegador.
+        Os recados ficam no banco de dados e todo usuário logado vê os mesmos.
+        Um recado marcado como público pode ser lido sem login, pelo endereço
+        dele. A ordem escolhida abaixo fica guardada só neste navegador.
     </p>
 </section>
 
 <form class="cartao" method="post" action="/sobre.php">
+    <?= campoCsrf() ?>
     <fieldset>
         <legend><h2>Ordem do mural</h2></legend>
 

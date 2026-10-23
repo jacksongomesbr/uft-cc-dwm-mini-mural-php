@@ -57,5 +57,18 @@ $recados = [
 confere('resumo conta publicados e arquivados', resumirRecados($recados), ['publicados' => 2, 'arquivados' => 1]);
 confere('resumo de lista vazia', resumirRecados([]), ['publicados' => 0, 'arquivados' => 0]);
 
+// validarCadastro e normalizarNome
+confere('nome em minúsculas e sem espaços', normalizarNome('  Ana.Souza '), 'ana.souza');
+confere('cadastro válido', validarCadastro('ana', 'senha-boa-123', 'senha-boa-123'), []);
+confere('nome curto', array_keys(validarCadastro('ab', 'senha-boa-123', 'senha-boa-123')), ['nome']);
+confere('nome com acento', array_keys(validarCadastro('joão', 'senha-boa-123', 'senha-boa-123')), ['nome']);
+confere('senha curta', array_keys(validarCadastro('ana', 'curta', 'curta')), ['senha']);
+confere('senha acima de 72 bytes', array_keys(validarCadastro('ana', str_repeat('a', 73), str_repeat('a', 73))), ['senha']);
+confere('confirmação diferente', array_keys(validarCadastro('ana', 'senha-boa-123', 'outra-senha-1')), ['confirmacao']);
+
+// O hash do usuário de exemplo, em seed.sql, confere com a senha documentada.
+preg_match('/\$2y\$[^\']+/', file_get_contents(__DIR__ . '/../sql/seed.sql'), $achado);
+confere('senha do usuário de exemplo', password_verify('senha-de-exemplo', $achado[0] ?? ''), true);
+
 echo $falhas === 0 ? "\nTudo certo.\n" : "\n$falhas falha(s).\n";
 exit($falhas === 0 ? 0 : 1);

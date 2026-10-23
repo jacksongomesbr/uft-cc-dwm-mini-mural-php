@@ -1,9 +1,16 @@
 <?php
-// Usa $titulo e $paginaAtual, recebidos pela função cabecalho().
-$paginas = [
-    'mural' => ['endereco' => '/', 'rotulo' => 'Mural'],
-    'sobre' => ['endereco' => '/sobre.php', 'rotulo' => 'Sobre'],
-];
+// Usa $titulo e $paginaAtual, recebidos pela função cabecalho(). A navegação
+// muda conforme a pessoa entrou ou não.
+$usuario = usuarioLogado();
+$paginas = $usuario !== null
+    ? [
+        'mural' => ['endereco' => '/', 'rotulo' => 'Mural'],
+        'sobre' => ['endereco' => '/sobre.php', 'rotulo' => 'Sobre'],
+    ]
+    : [
+        'entrar'   => ['endereco' => '/login.php', 'rotulo' => 'Entrar'],
+        'cadastro' => ['endereco' => '/cadastro.php', 'rotulo' => 'Criar conta'],
+    ];
 ?>
 <!doctype html>
 <html lang="pt-BR">
@@ -22,6 +29,14 @@ $paginas = [
                     <?= $pagina['rotulo'] ?>
                 </a>
             <?php endforeach; ?>
+
+            <?php if ($usuario !== null): ?>
+                <form class="sessao" method="post" action="/sair.php">
+                    <?= campoCsrf() ?>
+                    <span class="apoio"><?= e($usuario['nome']) ?></span>
+                    <button type="submit" class="botao-texto">Sair</button>
+                </form>
+            <?php endif; ?>
         </nav>
     </header>
     <main class="coluna">

@@ -10,6 +10,7 @@ require __DIR__ . '/../src/inicializar.php';
 // Mudança de dados só por POST. Um link (GET) que arquivasse poderia ser
 // disparado por um buscador ou por uma pré-carga do navegador.
 exigirPost();
+exigirLogin();
 
 $id = lerId(INPUT_POST);
 if ($id === null) {

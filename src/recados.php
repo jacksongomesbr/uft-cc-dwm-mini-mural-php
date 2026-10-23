@@ -5,7 +5,15 @@ declare(strict_types=1);
 // Todo o SQL de recados mora neste arquivo. As páginas chamam estas funções
 // e não escrevem consultas.
 //
-// Um recado é um array com as chaves id, texto, criado_em e status.
+// Um recado é um array com as chaves id, texto, criado_em, status, publico e
+// autor (o nome de quem publicou).
+
+// Colunas que toda consulta de recado devolve. O JOIN traz o nome do autor da
+// tabela usuarios.
+const COLUNAS_DO_RECADO = 'recados.id, recados.texto, recados.criado_em,
+       recados.status, recados.publico, usuarios.nome AS autor
+  FROM recados
+  JOIN usuarios ON usuarios.id = recados.autor_id';
 
 /**
  * Lista todos os recados na ordem escolhida.
@@ -17,9 +25,8 @@ function listarRecados(PDO $pdo, string $ordem): array
 {
     $direcao = $ordem === 'mais-antigos' ? 'ASC' : 'DESC';
 
-    $sql = "SELECT id, texto, criado_em, status
-              FROM recados
-             ORDER BY criado_em $direcao, id $direcao";
+    $sql = 'SELECT ' . COLUNAS_DO_RECADO
+        . " ORDER BY recados.criado_em $direcao, recados.id $direcao";
 
     return $pdo->query($sql)->fetchAll();
 }
@@ -28,7 +35,7 @@ function listarRecados(PDO $pdo, string $ordem): array
 function buscarRecado(PDO $pdo, int $id): ?array
 {
     $consulta = $pdo->prepare(
-        'SELECT id, texto, criado_em, status FROM recados WHERE id = :id'
+        'SELECT ' . COLUNAS_DO_RECADO . ' WHERE recados.id = :id'
     );
     $consulta->execute(['id' => $id]);
     $recado = $consulta->fetch();
@@ -42,12 +49,17 @@ function buscarRecado(PDO $pdo, int $id): ?array
  * Todo recado nasce publicado; data e status vêm dos valores padrão da tabela.
  * Quem chama já validou o texto com validarRecado().
  */
-function publicarRecado(PDO $pdo, string $texto): int
+function publicarRecado(PDO $pdo, string $texto, int $autorId, bool $publico): int
 {
     $consulta = $pdo->prepare(
-        'INSERT INTO recados (texto) VALUES (:texto) RETURNING id'
+        'INSERT INTO recados (texto, autor_id, publico)
+         VALUES (:texto, :autor_id, :publico) RETURNING id'
     );
-    $consulta->execute(['texto' => $texto]);
+    $consulta->bindValue('texto', $texto);
+    $consulta->bindValue('autor_id', $autorId, PDO::PARAM_INT);
+    // PARAM_BOOL faz o PDO enviar true/false, e não "1" ou "".
+    $consulta->bindValue('publico', $publico, PDO::PARAM_BOOL);
+    $consulta->execute();
 
     return (int) $consulta->fetchColumn();
 }

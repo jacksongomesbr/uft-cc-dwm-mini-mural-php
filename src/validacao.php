@@ -37,3 +37,45 @@ function normalizarQuebrasDeLinha(string $texto): string
 {
     return str_replace("\r\n", "\n", $texto);
 }
+
+const SENHA_MINIMO = 8;
+
+/**
+ * Nome de usuário como fica gravado: sem espaços nas pontas e em minúsculas.
+ * Assim "Ana" e "ana" são o mesmo usuário, no cadastro e no login.
+ */
+function normalizarNome(string $nome): string
+{
+    return mb_strtolower(trim($nome));
+}
+
+/**
+ * Confere os campos do cadastro e devolve as mensagens de erro por campo.
+ * Um array vazio quer dizer que está tudo certo.
+ */
+function validarCadastro(
+    string $nome,
+    #[\SensitiveParameter] string $senha,
+    #[\SensitiveParameter] string $confirmacao,
+): array {
+    $erros = [];
+
+    // A mesma regra do CHECK usuario_nome_valido, no schema.sql.
+    if (preg_match('/^[a-z0-9_.-]{3,30}$/', $nome) !== 1) {
+        $erros['nome'] = 'Use de 3 a 30 caracteres: letras sem acento, números, ponto, hífen ou sublinhado.';
+    }
+
+    if (mb_strlen($senha) < SENHA_MINIMO) {
+        $erros['senha'] = 'A senha precisa ter pelo menos ' . SENHA_MINIMO . ' caracteres.';
+    } elseif (strlen($senha) > 72) {
+        // O bcrypt, algoritmo do password_hash, só usa os primeiros 72 bytes.
+        // Uma senha maior teria um pedaço ignorado sem aviso.
+        $erros['senha'] = 'A senha aceita até 72 bytes; letras acentuadas ocupam 2.';
+    }
+
+    if ($confirmacao !== $senha) {
+        $erros['confirmacao'] = 'A confirmação é diferente da senha.';
+    }
+
+    return $erros;
+}
