@@ -80,5 +80,16 @@ confere('público e publicado tem leitura pública', leituraPublica($recadoDaAna
 confere('privado não tem leitura pública', leituraPublica(['publico' => false] + $recadoDaAna), false);
 confere('público arquivado não tem leitura pública', leituraPublica(['status' => 'arquivado'] + $recadoDaAna), false);
 
+// podeVer
+$ana = ['id' => 7, 'nome' => 'ana'];
+$bia = ['id' => 8, 'nome' => 'bia'];
+$arquivadoDaAna = ['status' => 'arquivado'] + $recadoDaAna;
+confere('autor vê o próprio arquivado', podeVer($arquivadoDaAna, $ana), true);
+confere('outro usuário não vê arquivado', podeVer($arquivadoDaAna, $bia), false);
+confere('sem login não vê arquivado', podeVer($arquivadoDaAna, null), false);
+confere('logado vê publicado privado de outro', podeVer(['publico' => false] + $recadoDaAna, $bia), true);
+confere('sem login não vê publicado privado', podeVer(['publico' => false] + $recadoDaAna, null), false);
+confere('sem login vê publicado público', podeVer($recadoDaAna, null), true);
+
 echo $falhas === 0 ? "\nTudo certo.\n" : "\n$falhas falha(s).\n";
 exit($falhas === 0 ? 0 : 1);

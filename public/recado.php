@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 // Detalhe de um recado: /recado.php?id=42
 //
-// Quem não entrou só lê recado público e ainda publicado, sem o botão de
-// arquivar. O botão aparece só para o autor.
+// Quem não entrou só lê recado público e ainda publicado. Recado arquivado só
+// aparece para o autor. O botão de arquivar aparece só para o autor.
 
 require __DIR__ . '/../src/inicializar.php';
 
@@ -25,10 +25,14 @@ if ($recado === null) {
     recadoNaoEncontrado();
 }
 
-// Recado privado ou arquivado só para quem entrou. Quem não entrou vai para o
-// login, como em qualquer outra página.
-if ($usuario === null && !leituraPublica($recado)) {
-    redirecionar('/login.php');
+// Quem não pode ver o recado: sem login, vai para o login, como em qualquer
+// outra página; com login, é um arquivado de outra pessoa, e a resposta é a
+// mesma de um recado que não existe, para não revelar que ele existe.
+if (!podeVer($recado, $usuario)) {
+    if ($usuario === null) {
+        redirecionar('/login.php');
+    }
+    recadoNaoEncontrado();
 }
 
 cabecalho('Recado', 'mural');

@@ -17,16 +17,22 @@ const COLUNAS_DO_RECADO = 'recados.id, recados.texto, recados.criado_em,
   JOIN usuarios ON usuarios.id = recados.autor_id';
 
 /**
- * Lista todos os recados na ordem escolhida. É a lista de quem entrou.
+ * Lista os recados que o usuário logado vê, na ordem escolhida: os publicados
+ * de todos e os arquivados só dele.
  *
  * A ordem vem de uma lista fechada: o valor do cookie decide entre duas
  * strings fixas e nunca entra no SQL.
  */
-function listarRecados(PDO $pdo, string $ordem): array
+function listarRecados(PDO $pdo, string $ordem, int $usuarioId): array
 {
-    $sql = 'SELECT ' . COLUNAS_DO_RECADO . ' ' . ordenacao($ordem);
+    $consulta = $pdo->prepare(
+        'SELECT ' . COLUNAS_DO_RECADO
+        . " WHERE recados.status = 'publicado' OR recados.autor_id = :usuario_id "
+        . ordenacao($ordem)
+    );
+    $consulta->execute(['usuario_id' => $usuarioId]);
 
-    return $pdo->query($sql)->fetchAll();
+    return $consulta->fetchAll();
 }
 
 /**
@@ -66,6 +72,19 @@ function buscarRecado(PDO $pdo, int $id): ?array
 function leituraPublica(array $recado): bool
 {
     return $recado['publico'] && $recado['status'] === 'publicado';
+}
+
+/**
+ * Quem pode ver o recado: recado arquivado, só o autor; recado publicado e
+ * privado, qualquer usuário logado; recado publicado e público, qualquer pessoa.
+ */
+function podeVer(array $recado, ?array $usuario): bool
+{
+    if ($recado['status'] === 'arquivado') {
+        return $usuario !== null && (int) $recado['autor_id'] === (int) $usuario['id'];
+    }
+
+    return $usuario !== null || $recado['publico'];
 }
 
 /** Só o autor arquiva, e só enquanto o recado está publicado. */

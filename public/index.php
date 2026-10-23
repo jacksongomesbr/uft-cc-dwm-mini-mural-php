@@ -41,7 +41,7 @@ if (ehPost()) {
     http_response_code(422);
 }
 
-$recados = listarRecados($pdo, lerOrdem());
+$recados = listarRecados($pdo, lerOrdem(), $usuario['id']);
 $resumo = resumirRecados($recados);
 $restantes = LIMITE_DO_RECADO - mb_strlen($texto);
 

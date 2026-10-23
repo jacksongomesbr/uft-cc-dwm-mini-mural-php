@@ -19,7 +19,8 @@ if ($id === null) {
 
 $pdo = conectarAoBanco($configuracao['banco']);
 $recado = buscarRecado($pdo, $id);
-if ($recado === null) {
+// Arquivado de outra pessoa é tratado como inexistente, como no detalhe.
+if ($recado === null || !podeVer($recado, $usuario)) {
     recadoNaoEncontrado();
 }
 
