@@ -74,8 +74,8 @@ cada abertura do mural.
 
 Um recado só anda em uma direção: a aplicação não oferece desarquivar nem
 apagar. O campo `publico` é decidido na publicação e não muda depois. Só o
-autor arquiva, e o arquivamento grava o instante em `arquivado_em`. Um recado
-público arquivado deixa de ser lido sem login.
+autor arquiva, e o arquivamento grava o instante em `arquivado_em`. Depois de
+arquivado, o recado só aparece para o autor, mesmo que seja público.
 
 ```mermaid
 stateDiagram-v2
@@ -89,8 +89,8 @@ stateDiagram-v2
 Cada linha chega ao PHP como um array associativo. Um recado tem as chaves
 `id`, `texto`, `criado_em`, `status`, `arquivado_em`, `publico`, `autor_id` e
 `autor`, esta com o nome de quem publicou, trazido pelo `JOIN`. As funções
-`leituraPublica()` e `podeArquivar()` decidem, a partir desse array, quem lê e
-quem arquiva. O usuário da sessão tem só `id` e `nome`; o
+`leituraPublica()`, `podeVer()` e `podeArquivar()` decidem, a partir desse
+array, quem lê e quem arquiva. O usuário da sessão tem só `id` e `nome`; o
 hash da senha não sai de `src/usuarios.php`. O projeto não tem classes
 (decisão D5 em [decisoes.md](decisoes.md)).
 
@@ -100,12 +100,14 @@ Estas são todas as consultas do projeto. As de recados ficam em
 `src/recados.php`, e as de usuários, em `src/usuarios.php`.
 
 ```sql
--- listarRecados(): ASC ou DESC sai de uma lista fechada, nunca do pedido
+-- listarRecados(): publicados de todos e arquivados só do usuário logado;
+-- ASC ou DESC sai de uma lista fechada, nunca do pedido
 SELECT recados.id, recados.texto, recados.criado_em, recados.status,
        recados.arquivado_em, recados.publico, recados.autor_id,
        usuarios.nome AS autor
   FROM recados
   JOIN usuarios ON usuarios.id = recados.autor_id
+ WHERE recados.status = 'publicado' OR recados.autor_id = :usuario_id
  ORDER BY recados.criado_em DESC, recados.id DESC;
 
 -- listarRecadosPublicos(): a mesma consulta, só com o que se lê sem login

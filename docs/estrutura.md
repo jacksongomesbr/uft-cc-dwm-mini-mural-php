@@ -124,7 +124,7 @@ flowchart LR
 | `public/js/mural.js` | Contador de caracteres e aviso de erro antes do envio | O comportamento do formulário no navegador muda |
 | `src/inicializar.php` | Carrega `config.php`, fuso, funções e o tratador de exceção, abre a sessão e confere o token CSRF de todo POST | Entra um arquivo novo em `src/` |
 | `src/banco.php` | `conectarAoBanco()` | A forma de conectar muda |
-| `src/recados.php` | Todo o SQL de recados, `leituraPublica()`, `podeArquivar()` e `resumirRecados()` | Uma consulta de recados muda |
+| `src/recados.php` | Todo o SQL de recados, `leituraPublica()`, `podeVer()`, `podeArquivar()` e `resumirRecados()` | Uma consulta de recados muda |
 | `src/usuarios.php` | `conferirLogin()` e `criarUsuario()`, com o SQL de usuários | Uma consulta de usuários muda |
 | `src/sessao.php` | `iniciarSessao()`, `usuarioLogado()`, `entrar()`, `sair()`, `exigirLogin()` e as funções do token CSRF | A forma de guardar o login muda |
 | `src/validacao.php` | `validarRecado()`, `normalizarQuebrasDeLinha()`, `normalizarNome()` e `validarCadastro()` | A regra do recado ou do cadastro muda |

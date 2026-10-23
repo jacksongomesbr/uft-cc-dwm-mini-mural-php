@@ -21,7 +21,7 @@ FastCGI. Para o código do projeto, as duas formas são iguais.
 
 O navegador nunca fala com o banco. Todo acesso a dados passa pelo PHP, e é no
 PHP que mora a regra de negócio: só quem entrou publica, só o autor arquiva o
-próprio recado, o texto do recado tem de 1 a 280 caracteres, todo recado nasce
+próprio recado e vê o recado depois de arquivado, o texto do recado tem de 1 a 280 caracteres, todo recado nasce
 publicado e privado, e só um recado publicado pode ser arquivado.
 
 ## Funcionalidades
@@ -90,8 +90,8 @@ como em `/config.php` ou `/qualquer-coisa`, a resposta é 404.
 |---|---|---|---|---|
 | `/` | GET | Não | Com login, mostra o formulário, o resumo e a lista na ordem do cookie; sem login, só os recados públicos ainda publicados | 200 com HTML |
 | `/` | POST | Sim | Valida e grava um recado novo, público ou privado | 303 para `/` se válido, 422 com a página e a mensagem se inválido |
-| `/recado.php?id=N` | GET | Só para recado privado | Mostra um recado | 200, ou 404 se o id não é inteiro ou não existe |
-| `/arquivar.php` | POST | Sim, e só o autor | Arquiva o recado `id` e grava o instante | 303 para a lista ou para o detalhe; 403 se quem pede não é o autor; 405 se chegar por GET |
+| `/recado.php?id=N` | GET | Para recado privado ou arquivado | Mostra um recado | 200; 404 se o id não é inteiro, se não existe ou se é um arquivado de outra pessoa |
+| `/arquivar.php` | POST | Sim, e só o autor | Arquiva o recado `id` e grava o instante | 303 para a lista ou para o detalhe; 403 se quem pede não é o autor; 404 se é um arquivado de outra pessoa; 405 se chegar por GET |
 | `/sobre.php` | GET e POST | Sim | Mostra e grava a ordem no cookie | 200; 303 para `/sobre.php?salvo=1` depois de gravar |
 | `/login.php` | GET e POST | Não | Mostra o formulário e confere nome e senha | 303 para `/` se conferem, 422 se não |
 | `/cadastro.php` | GET e POST | Não | Cria a conta e já entra nela | 303 para `/` se criou, 422 com as mensagens se não |
@@ -378,6 +378,7 @@ A tabela liga cada risco ao cuidado que o evita e ao arquivo onde ele está.
 | Script injetado em recado (XSS) | Todo texto passa por `e()`, que chama `htmlspecialchars`, antes de ir para o HTML | `src/visao.php` e páginas |
 | Redirecionamento para site externo | O destino depois de arquivar sai de duas opções fixas, nunca do pedido | `public/arquivar.php` |
 | Mudança de dados por link | Publicar, arquivar, salvar a ordem e sair só aceitam POST | `src/http.php` (`exigirPost`, `ehPost`) |
+| Ver recado arquivado de outra pessoa | A lista filtra os arquivados pelo autor, e o detalhe responde 404 a quem não é o autor | `listarRecados()` e `podeVer()` |
 | Arquivar recado de outra pessoa | A página confere o autor e responde 403; o `UPDATE` repete o filtro por `autor_id` | `public/arquivar.php` e `arquivarRecado()` |
 | Formulário enviado por outro site (CSRF) | Token aleatório na sessão, conferido em todo POST com `hash_equals` | `src/sessao.php` e `src/inicializar.php` |
 | Senha vazada do banco | Só o hash do `password_hash` vai para a tabela | `src/usuarios.php` |
