@@ -20,15 +20,16 @@ nginx, o PHP-FPM é um processo separado, e o nginx fala com ele pelo protocolo
 FastCGI. Para o código do projeto, as duas formas são iguais.
 
 O navegador nunca fala com o banco. Todo acesso a dados passa pelo PHP, e é no
-PHP que mora a regra de negócio: só quem entrou publica e arquiva, o texto do
-recado tem de 1 a 280 caracteres, todo recado nasce publicado e privado, e só
-um recado publicado pode ser arquivado.
+PHP que mora a regra de negócio: só quem entrou publica, só o autor arquiva o
+próprio recado, o texto do recado tem de 1 a 280 caracteres, todo recado nasce
+publicado e privado, e só um recado publicado pode ser arquivado.
 
 ## Funcionalidades
 
 São seis funcionalidades: criar conta e entrar, publicar, listar, abrir o
 detalhe, arquivar e escolher a ordem do mural. Todas exigem login, menos a
-leitura de um recado público.
+leitura dos recados públicos ainda publicados, que qualquer pessoa vê na página
+inicial e no endereço de cada um.
 
 ```mermaid
 flowchart LR
@@ -45,12 +46,12 @@ flowchart LR
         F1["Publicar recado"]
         F2["Ver a lista de recados"]
         F3["Ver o resumo: publicados e arquivados"]
-        F4["Arquivar recado pela lista"]
+        F4["Arquivar o próprio recado pela lista"]
     end
 
     subgraph detalhe ["Detalhe: /recado.php?id=N"]
         F5["Ver o texto completo, data e hora"]
-        F6["Arquivar recado pelo detalhe"]
+        F6["Arquivar o próprio recado pelo detalhe"]
         F7["Ver aviso de recado não encontrado"]
     end
 
@@ -61,7 +62,8 @@ flowchart LR
 
     V --> C1
     V --> C2
-    V -. "só recado público, sem arquivar" .-> F5
+    V --> P1["Ver a lista de recados públicos: /"]
+    P1 -- "clique no texto" --> F5
     C1 -. "já entra na conta" .-> U
     C2 --> U
     U --> C3
@@ -86,10 +88,10 @@ como em `/config.php` ou `/qualquer-coisa`, a resposta é 404.
 
 | Endereço | Método | Login | O que faz | Resposta |
 |---|---|---|---|---|
-| `/` | GET | Sim | Mostra o formulário, o resumo e a lista na ordem do cookie | 200 com HTML |
+| `/` | GET | Não | Com login, mostra o formulário, o resumo e a lista na ordem do cookie; sem login, só os recados públicos ainda publicados | 200 com HTML |
 | `/` | POST | Sim | Valida e grava um recado novo, público ou privado | 303 para `/` se válido, 422 com a página e a mensagem se inválido |
 | `/recado.php?id=N` | GET | Só para recado privado | Mostra um recado | 200, ou 404 se o id não é inteiro ou não existe |
-| `/arquivar.php` | POST | Sim | Arquiva o recado `id` | 303 para a lista ou para o detalhe; 405 se chegar por GET |
+| `/arquivar.php` | POST | Sim, e só o autor | Arquiva o recado `id` e grava o instante | 303 para a lista ou para o detalhe; 403 se quem pede não é o autor; 405 se chegar por GET |
 | `/sobre.php` | GET e POST | Sim | Mostra e grava a ordem no cookie | 200; 303 para `/sobre.php?salvo=1` depois de gravar |
 | `/login.php` | GET e POST | Não | Mostra o formulário e confere nome e senha | 303 para `/` se conferem, 422 se não |
 | `/cadastro.php` | GET e POST | Não | Cria a conta e já entra nela | 303 para `/` se criou, 422 com as mensagens se não |
@@ -197,9 +199,11 @@ sequenceDiagram
 
 ### Arquivar um recado
 
-O botão "Arquivar" é um formulário com o campo oculto `id`. Arquivar muda
-dados, por isso usa POST: um link comum seria um GET, e um GET pode ser
-disparado por um buscador ou por uma pré-carga do navegador.
+O botão "Arquivar" é um formulário com o campo oculto `id`, e só aparece para o
+autor do recado. Arquivar muda dados, por isso usa POST: um link comum seria um
+GET, e um GET pode ser disparado por um buscador ou por uma pré-carga do
+navegador. Como um POST pode ser montado à mão, sem o botão, a página confere o
+autor de novo antes de gravar.
 
 ```mermaid
 sequenceDiagram
@@ -209,10 +213,15 @@ sequenceDiagram
     participant P as PHP: public/arquivar.php
     participant B as PostgreSQL
 
-    U->>N: clica em Arquivar
-    N->>P: POST /arquivar.php com id=4
-    P->>P: lerId() confere se id é inteiro positivo
-    P->>B: UPDATE recados SET status = arquivado WHERE id = $1 AND status = publicado
+    U->>N: clica em Arquivar, no próprio recado
+    N->>P: POST /arquivar.php com id=4 e o token
+    P->>P: exigirLogin() e lerId()
+    P->>B: SELECT ... WHERE recados.id = 4
+    B-->>P: o recado, com autor_id
+    alt quem pede não é o autor
+        P-->>N: 403 com Só quem publicou o recado pode arquivá-lo.
+    end
+    P->>B: UPDATE recados SET status = arquivado, arquivado_em = now() WHERE id = 4 AND autor_id = ... AND status = publicado
     B-->>P: 1 linha alterada, ou 0 se já estava arquivado
     alt veio da lista
         P-->>N: 303, Location: / com a âncora do recado
@@ -314,7 +323,7 @@ sequenceDiagram
     end
 ```
 
-### Recado público e recado privado sem login
+### Recados públicos sem login
 
 ```mermaid
 sequenceDiagram
@@ -324,13 +333,18 @@ sequenceDiagram
     participant P as PHP: public/recado.php
     participant B as PostgreSQL
 
-    V->>N: abre o endereço de um recado
+    V->>N: abre http://localhost:8081/
+    N->>P: GET / sem login, atendido por public/index.php
+    P->>B: SELECT ... WHERE recados.publico AND recados.status = publicado
+    B-->>P: só os recados públicos ainda publicados
+    P-->>N: 200 com a lista, sem formulário e sem botões
+    V->>N: clica em um recado, ou abre o endereço dele
     N->>P: GET /recado.php?id=N
     P->>B: SELECT ... FROM recados JOIN usuarios WHERE recados.id = N
-    B-->>P: o recado, com publico e autor
-    alt recado público
+    B-->>P: o recado, com publico, status e autor
+    alt público e publicado
         P-->>N: 200 com o recado, sem o botão de arquivar
-    else recado privado
+    else privado ou arquivado
         P-->>N: 303, Location: /login.php
     end
 ```
@@ -364,6 +378,7 @@ A tabela liga cada risco ao cuidado que o evita e ao arquivo onde ele está.
 | Script injetado em recado (XSS) | Todo texto passa por `e()`, que chama `htmlspecialchars`, antes de ir para o HTML | `src/visao.php` e páginas |
 | Redirecionamento para site externo | O destino depois de arquivar sai de duas opções fixas, nunca do pedido | `public/arquivar.php` |
 | Mudança de dados por link | Publicar, arquivar, salvar a ordem e sair só aceitam POST | `src/http.php` (`exigirPost`, `ehPost`) |
+| Arquivar recado de outra pessoa | A página confere o autor e responde 403; o `UPDATE` repete o filtro por `autor_id` | `public/arquivar.php` e `arquivarRecado()` |
 | Formulário enviado por outro site (CSRF) | Token aleatório na sessão, conferido em todo POST com `hash_equals` | `src/sessao.php` e `src/inicializar.php` |
 | Senha vazada do banco | Só o hash do `password_hash` vai para a tabela | `src/usuarios.php` |
 | Descobrir quais nomes existem | Mesma mensagem e mesmo tempo para nome inexistente e senha errada | `conferirLogin()` em `src/usuarios.php` |

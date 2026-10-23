@@ -12,13 +12,14 @@ instalar PHP, servidor web e PostgreSQL, use o [Docker](#rodar-com-docker).
 
 ## Funcionalidades
 
-- Criar conta, entrar e sair. Todo o mural exige login.
+- Ver, sem login, a lista dos recados públicos ainda publicados.
+- Criar conta, entrar e sair. O resto do mural exige login.
 - Publicar um recado de até 280 caracteres, com contador e aviso de erro. O
-  recado nasce privado; marcado como público, ele pode ser lido sem login, pelo
-  endereço dele.
+  recado nasce privado; marcado como público, ele aparece para quem não entrou.
 - Ver a lista de recados com hora, autor e o resumo de publicados e arquivados.
 - Abrir o detalhe de um recado, com data e hora por extenso.
-- Arquivar um recado pela lista ou pelo detalhe.
+- Arquivar o próprio recado pela lista ou pelo detalhe. Só o autor arquiva, e a
+  data e a hora do arquivamento ficam gravadas.
 - Escolher, em Sobre, a ordem do mural, guardada no navegador.
 
 Como cada uma funciona, e por quê, está em [docs/](docs/README.md).
@@ -33,6 +34,7 @@ etapa, e o `main` sempre aponta para a mais recente.
 | `etapa-1-monolito` | 1: Monólito | Mural sem login, instalado direto com Apache ou nginx e PostgreSQL. |
 | `etapa-2-docker` | 2: Docker | O mesmo mural, com um `compose.yaml` para rodar na própria máquina. |
 | `etapa-3-login` | 3: Login | Cadastro, login e saída; todo o mural exige login, e o recado pode ser público. |
+| `etapa-4-autoria` | 4: Autoria | Só o autor arquiva, a data do arquivamento fica gravada, e a página inicial mostra os recados públicos a quem não entrou. |
 | `main` | (a mais recente) | Igual ao ramo da etapa mais recente. |
 
 Para estudar uma etapa, troque de ramo, por exemplo `git switch etapa-1-monolito`.
@@ -289,8 +291,8 @@ php tests/regras_test.php
 
 Com o site no ar, exercite o mural no navegador:
 
-1. Abra <http://localhost:8081>. Sem login, o navegador vai para a tela de
-   entrar.
+1. Abra <http://localhost:8081>. Sem login, aparece a lista dos recados
+   públicos, sem formulário nem botões.
 2. Crie uma conta em "Criar conta". Um nome que já existe, mesmo com outras
    maiúsculas, ou uma senha com menos de 8 caracteres mostram a mensagem no
    campo.
@@ -298,18 +300,26 @@ Com o site no ar, exercite o mural no navegador:
    campo.
 4. Publique um recado privado e outro com a caixa "Público" marcada. Os dois
    aparecem no topo da lista com o seu nome.
-5. Arquive um recado pela lista e outro pelo detalhe. Os dois passam a mostrar
-   "Arquivado".
+5. Arquive um recado seu pela lista e outro pelo detalhe. Os dois passam a
+   mostrar "Arquivado", com a hora; o detalhe mostra a data e a hora completas.
+   Nos recados de outro usuário, como os do `exemplo`, o botão "Arquivar" não
+   aparece.
 6. Em Sobre, escolha "Mais antigos primeiro", salve e volte ao Mural. A ordem se
    inverte e continua assim depois de recarregar.
-7. Clique em Sair e abra o endereço do recado público. Ele aparece sem o botão
-   de arquivar. O endereço do recado privado leva à tela de entrar.
+7. Clique em Sair. A página inicial mostra o recado público que você publicou,
+   e o endereço dele abre sem login. O endereço do recado privado, e o de um
+   público que você arquivou, levam à tela de entrar.
 
-Confira também pelo terminal. Sem login, o mural responde `303`, um
-redirecionamento para a tela de entrar:
+Confira também pelo terminal. Sem login, a página inicial responde `200`, com a
+lista de recados públicos, e Sobre responde `303`, um redirecionamento para a
+tela de entrar:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://localhost:8081/
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8081/
+```
+
+```bash
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://localhost:8081/sobre.php
 ```
 
 Com os exemplos carregados, o recado 3 é público e responde `200` sem login:
@@ -341,7 +351,7 @@ mini-mural/
 │   ├── apache.conf        # Site do Apache dentro do contêiner
 │   └── config.php         # Configuração lida das variáveis de ambiente
 ├── public/                # Raiz de documentos do servidor web
-│   ├── index.php          # Mural: lista, resumo e formulário (GET e POST)
+│   ├── index.php          # Mural com login; recados públicos sem login
 │   ├── recado.php         # Detalhe de um recado; o público abre sem login
 │   ├── arquivar.php       # Ação de arquivar (só POST)
 │   ├── sobre.php          # Descrição e ordem do mural
@@ -361,7 +371,7 @@ mini-mural/
 │   ├── formatacao.php     # Datas e fuso
 │   ├── http.php           # Leitura do pedido e redirecionamento
 │   ├── visao.php          # Escape de HTML e esqueleto das páginas
-│   └── templates/         # Cabeçalho, rodapé, 404 e erro
+│   └── templates/         # Cabeçalho, rodapé, recados públicos, 404, 403 e erro
 ├── servidor/
 │   ├── apache.conf        # Site para Apache com mod_php
 │   └── nginx.conf         # Site para nginx com PHP-FPM
@@ -389,6 +399,7 @@ e o log do PHP-FPM em `/var/log/` (nginx). Com Docker, leia
 | `403 Forbidden` | O usuário `www-data` não consegue ler a pasta do projeto | Confira o passo 2 |
 | O navegador baixa o `.php` em vez de mostrar a página | O PHP não está ligado ao servidor | Instale `libapache2-mod-php` (Apache) ou confira o bloco `location ~ \.php$` (nginx) |
 | Texto "Arquivo config.php não encontrado" | Passo 4 não feito | Copie `config.exemplo.php` para `config.php` |
+| Página "Ação não permitida" ao arquivar (403) | O recado é de outro usuário | Só o autor arquiva; entre com a conta de quem publicou |
 | Texto "Formulário expirado ou enviado de fora do mural" (403) | A sessão acabou entre abrir a página e enviar o formulário, e o token mudou | Recarregue a página e envie de novo |
 | Volta para a tela de entrar a cada página | O navegador não guarda o cookie `mini_mural_sessao` | Confira se os cookies estão permitidos para `localhost` |
 | `relation "usuarios" does not exist` no log | O banco tem o esquema de uma etapa anterior | Rode o `schema.sql` de novo, que apaga os dados |

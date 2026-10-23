@@ -24,6 +24,7 @@ erDiagram
         text status "publicado ou arquivado, padrão publicado"
         bigint autor_id FK "usuário que publicou"
         boolean publico "padrão false (privado)"
+        timestamptz arquivado_em "instante do arquivamento, vazio se publicado"
     }
 ```
 
@@ -56,7 +57,13 @@ O que fica fora do banco também faz parte do estado da aplicação:
 | `criado_em` | `timestamptz` | Instante da gravação, com fuso | `DEFAULT now()` |
 | `status` | `text` | `publicado` ou `arquivado` | `DEFAULT 'publicado'` e o `CHECK` `recado_status_valido` |
 | `autor_id` | `bigint` | Um usuário que existe | `REFERENCES usuarios (id)`; o PHP grava o id do usuário logado |
-| `publico` | `boolean` | `true` deixa ler sem login | `DEFAULT false`; o PHP grava a caixa "Público" do formulário |
+| `publico` | `boolean` | `true` deixa ler sem login enquanto o recado está publicado | `DEFAULT false`; o PHP grava a caixa "Público" do formulário |
+| `arquivado_em` | `timestamptz` | Preenchido se e só se o recado está arquivado | `now()` no `UPDATE` de `arquivarRecado()` e o `CHECK` `recado_arquivado_com_data` |
+
+O `CHECK recado_arquivado_com_data` compara duas condições,
+`(status = 'arquivado') = (arquivado_em IS NOT NULL)`. Ele recusa um recado
+arquivado sem data e um recado publicado com data, então as duas colunas nunca
+se contradizem.
 
 O `REFERENCES` impede apagar um usuário que tem recados. O índice
 `recados_criado_em` atende ao `ORDER BY criado_em` da lista. Com três recados
@@ -66,20 +73,24 @@ cada abertura do mural.
 ## Ciclo de vida de um recado
 
 Um recado só anda em uma direção: a aplicação não oferece desarquivar nem
-apagar. O campo `publico` é decidido na publicação e não muda depois.
+apagar. O campo `publico` é decidido na publicação e não muda depois. Só o
+autor arquiva, e o arquivamento grava o instante em `arquivado_em`. Um recado
+público arquivado deixa de ser lido sem login.
 
 ```mermaid
 stateDiagram-v2
     [*] --> publicado: POST / com texto válido (INSERT)
-    publicado --> arquivado: POST /arquivar.php (UPDATE)
+    publicado --> arquivado: POST /arquivar.php pelo autor (UPDATE com arquivado_em = now())
     arquivado --> arquivado: arquivar de novo não altera nada
 ```
 
 ## No PHP
 
 Cada linha chega ao PHP como um array associativo. Um recado tem as chaves
-`id`, `texto`, `criado_em`, `status`, `publico` e `autor`, esta com o nome de
-quem publicou, trazido pelo `JOIN`. O usuário da sessão tem só `id` e `nome`; o
+`id`, `texto`, `criado_em`, `status`, `arquivado_em`, `publico`, `autor_id` e
+`autor`, esta com o nome de quem publicou, trazido pelo `JOIN`. As funções
+`leituraPublica()` e `podeArquivar()` decidem, a partir desse array, quem lê e
+quem arquiva. O usuário da sessão tem só `id` e `nome`; o
 hash da senha não sai de `src/usuarios.php`. O projeto não tem classes
 (decisão D5 em [decisoes.md](decisoes.md)).
 
@@ -91,10 +102,14 @@ Estas são todas as consultas do projeto. As de recados ficam em
 ```sql
 -- listarRecados(): ASC ou DESC sai de uma lista fechada, nunca do pedido
 SELECT recados.id, recados.texto, recados.criado_em, recados.status,
-       recados.publico, usuarios.nome AS autor
+       recados.arquivado_em, recados.publico, recados.autor_id,
+       usuarios.nome AS autor
   FROM recados
   JOIN usuarios ON usuarios.id = recados.autor_id
  ORDER BY recados.criado_em DESC, recados.id DESC;
+
+-- listarRecadosPublicos(): a mesma consulta, só com o que se lê sem login
+SELECT ... WHERE recados.publico AND recados.status = 'publicado' ORDER BY ...;
 
 -- buscarRecado(): as mesmas colunas e o mesmo JOIN
 SELECT ... WHERE recados.id = :id;
@@ -103,8 +118,9 @@ SELECT ... WHERE recados.id = :id;
 INSERT INTO recados (texto, autor_id, publico)
 VALUES (:texto, :autor_id, :publico) RETURNING id;
 
--- arquivarRecado()
-UPDATE recados SET status = 'arquivado' WHERE id = :id AND status = 'publicado';
+-- arquivarRecado(): o filtro por autor_id repete a conferência da página
+UPDATE recados SET status = 'arquivado', arquivado_em = now()
+ WHERE id = :id AND autor_id = :autor_id AND status = 'publicado';
 
 -- conferirLogin()
 SELECT id, nome, senha_hash FROM usuarios WHERE nome = :nome;

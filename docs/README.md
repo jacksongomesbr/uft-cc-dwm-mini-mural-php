@@ -22,9 +22,9 @@ O Mini Mural é uma aplicação web em que o servidor monta cada página. O
 navegador pede um endereço, o Apache ou o nginx entrega o pedido ao PHP, o PHP
 consulta o PostgreSQL e devolve HTML pronto. Publicar, arquivar e escolher a
 ordem são formulários comuns enviados por POST, seguidos de um redirecionamento.
-O login usa a sessão do PHP, e todo o mural exige login, menos a leitura de um
-recado marcado como público.
-O JavaScript só melhora o formulário de recado; sem ele, tudo continua
+O login usa a sessão do PHP. Quem não entrou vê só os recados públicos ainda
+publicados; o resto exige login, e só o autor arquiva o próprio recado. O
+JavaScript só melhora o formulário de recado; sem ele, tudo continua
 funcionando. O projeto serve para ver, sem camadas de framework, o que um
 servidor web faz em cada pedido. Para rodar na própria máquina sem instalar
 PHP e PostgreSQL, há um `compose.yaml` com Docker (decisão D19).

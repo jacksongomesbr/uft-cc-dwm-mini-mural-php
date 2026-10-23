@@ -65,7 +65,7 @@ cabecalho('Mural', 'mural');
 
     <label class="caixa">
         <input type="checkbox" name="publico" value="1" <?= $publico ? 'checked' : '' ?>>
-        Público: qualquer pessoa com o endereço pode ler, sem login
+        Público: aparece para quem não entrou, até ser arquivado
     </label>
 
     <div class="linha">

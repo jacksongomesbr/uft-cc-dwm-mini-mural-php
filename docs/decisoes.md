@@ -226,6 +226,9 @@ nota que aponta para a nova, e a nova entra no fim do documento.
 
 ### D17. Arquivar é repetível
 
+> **Revista na etapa 4 (D26):** continua repetível para o autor. Para outro
+> usuário, a página responde 403 antes de chegar ao `UPDATE`.
+
 - **Decisão:** o `UPDATE` filtra `status = 'publicado'`. Arquivar duas vezes,
   ou arquivar um id que não existe, não altera nada e redireciona normalmente.
 - **Alternativa descartada:** consultar o recado antes e responder 404 ou 409
@@ -344,6 +347,9 @@ nota que aponta para a nova, e a nova entra no fim do documento.
 
 ### D24. Tudo exige login, menos o recado público
 
+> **Revista na etapa 4 (D25 e D26):** a página inicial mostra a lista dos
+> recados públicos a quem não entrou, e só o autor arquiva.
+
 - **Decisão:** mural, Sobre, publicar e arquivar exigem login; quem não entrou
   vai para `/login.php`. A exceção é o detalhe de um recado marcado como
   público, que qualquer pessoa lê pelo endereço, sem botão de arquivar. Todo
@@ -359,3 +365,52 @@ nota que aponta para a nova, e a nova entra no fim do documento.
   receber o endereço dele. Um recado não muda de privado para público depois de
   publicado. Um usuário com recados não pode ser apagado, por causa do
   `REFERENCES` da coluna `autor_id`.
+
+## Autoria e recados públicos (etapa 4)
+
+### D25. Página inicial com os recados públicos para quem não entrou
+
+- **Decisão:** em `/`, quem não entrou vê a lista dos recados públicos ainda
+  publicados, só para leitura, sem formulário nem botões. Quem entrou continua
+  vendo o mural completo no mesmo endereço. Um recado público arquivado sai da
+  vista pública: some da lista e o endereço dele passa a pedir login.
+- **Alternativa descartada:** uma página separada, como `/publicos.php`, com
+  `/` ainda redirecionando para o login.
+- **Motivo:** a regra é que os recados públicos fiquem visíveis para todos, e o
+  primeiro endereço que alguém abre é `/`. Mostrar a lista ali evita que o
+  visitante caia na tela de login sem saber que há algo para ler. O arquivado
+  sai da vista porque arquivar é tirar o recado do mural.
+- **Consequência aceita:** `public/index.php` tem dois caminhos, um para cada
+  situação, e a lista pública mora em um template próprio
+  (`src/templates/recados-publicos.php`). Publicar sem login continua
+  redirecionando para `/login.php`.
+
+### D26. Só o autor arquiva, conferido na página e no banco
+
+- **Decisão:** o botão "Arquivar" só aparece para o autor (`podeArquivar()`).
+  `public/arquivar.php` busca o recado e responde 403 se quem pede não é o
+  autor. O `UPDATE` de `arquivarRecado()` filtra também por `autor_id`.
+- **Alternativa descartada:** só esconder o botão, ou só filtrar no `UPDATE` e
+  redirecionar sem aviso quando nada muda.
+- **Motivo:** esconder o botão não impede um POST montado à mão. Filtrar só no
+  `UPDATE` impediria a mudança, mas a pessoa receberia o mesmo redirecionamento
+  de um arquivamento bem-sucedido. O 403 diz o que aconteceu, e o filtro no
+  `UPDATE` protege mesmo que uma página nova esqueça a conferência.
+- **Consequência aceita:** arquivar faz duas consultas, uma para buscar o
+  recado e outra para alterá-lo. Um recado de um usuário que perdeu a conta não
+  pode mais ser arquivado por ninguém.
+
+### D27. Instante do arquivamento em `arquivado_em`, amarrado ao status
+
+- **Decisão:** a coluna `arquivado_em timestamptz` recebe `now()` no
+  arquivamento e fica vazia enquanto o recado está publicado. O `CHECK
+  recado_arquivado_com_data` exige que as duas colunas concordem.
+- **Alternativa descartada:** uma tabela de histórico, com cada mudança de
+  status, ou trocar a coluna `status` por `arquivado_em` e deduzir o status da
+  data.
+- **Motivo:** o mural só tem uma mudança de estado, e uma coluna basta. Manter
+  `status` evita reescrever as consultas e o `CHECK` das etapas anteriores, e o
+  novo `CHECK` impede que as duas colunas se contradigam.
+- **Consequência aceita:** status e data guardam a mesma informação de dois
+  jeitos, e o banco confere a coerência. Recriar o banco com o `schema.sql`
+  desta etapa apaga os dados das anteriores, como em toda troca de etapa.

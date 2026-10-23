@@ -21,7 +21,7 @@ flowchart TD
     raiz --> compose["compose.yaml: serviços app e banco"]
     raiz --> docker["docker/"]
 
-    public --> index["index.php: mural e publicar"]
+    public --> index["index.php: mural ou recados públicos"]
     public --> recado["recado.php: detalhe"]
     public --> arquivar["arquivar.php: ação de arquivar"]
     public --> sobre["sobre.php: descrição e ordem"]
@@ -41,7 +41,7 @@ flowchart TD
     src --> formatacao["formatacao.php: datas"]
     src --> http["http.php: POST, id, redirecionar"]
     src --> visao["visao.php: escape e templates"]
-    src --> templates["templates/: cabeçalho, rodapé, 404, erro"]
+    src --> templates["templates/: cabeçalho, rodapé, recados públicos, 404, 403, erro"]
 
     servidor --> apache["apache.conf: Apache com mod_php"]
     servidor --> nginx["nginx.conf: nginx com PHP-FPM"]
@@ -113,9 +113,9 @@ flowchart LR
 
 | Arquivo | Conteúdo | Muda quando |
 |---|---|---|
-| `public/index.php` | Lê o POST do formulário, chama a validação, grava, lista e desenha o mural | A tela do mural muda |
+| `public/index.php` | Com login, lê o POST do formulário, valida, grava e desenha o mural; sem login, desenha a lista de recados públicos | A tela do mural muda |
 | `public/recado.php` | Valida o `id`, busca o recado e desenha o detalhe ou o 404 | A tela de detalhe muda |
-| `public/arquivar.php` | Exige POST, arquiva e redireciona | O destino depois de arquivar muda |
+| `public/arquivar.php` | Exige POST e login, confere se quem pede é o autor, arquiva e redireciona | O destino depois de arquivar muda |
 | `public/sobre.php` | Mostra a descrição e grava a ordem no cookie | A tela Sobre muda |
 | `public/login.php` | Confere nome e senha e abre a sessão | A tela de entrar muda |
 | `public/cadastro.php` | Valida o cadastro, cria o usuário e já entra | A tela de cadastro ou as regras de conta mudam |
@@ -124,15 +124,15 @@ flowchart LR
 | `public/js/mural.js` | Contador de caracteres e aviso de erro antes do envio | O comportamento do formulário no navegador muda |
 | `src/inicializar.php` | Carrega `config.php`, fuso, funções e o tratador de exceção, abre a sessão e confere o token CSRF de todo POST | Entra um arquivo novo em `src/` |
 | `src/banco.php` | `conectarAoBanco()` | A forma de conectar muda |
-| `src/recados.php` | Todo o SQL de recados e `resumirRecados()` | Uma consulta de recados muda |
+| `src/recados.php` | Todo o SQL de recados, `leituraPublica()`, `podeArquivar()` e `resumirRecados()` | Uma consulta de recados muda |
 | `src/usuarios.php` | `conferirLogin()` e `criarUsuario()`, com o SQL de usuários | Uma consulta de usuários muda |
 | `src/sessao.php` | `iniciarSessao()`, `usuarioLogado()`, `entrar()`, `sair()`, `exigirLogin()` e as funções do token CSRF | A forma de guardar o login muda |
 | `src/validacao.php` | `validarRecado()`, `normalizarQuebrasDeLinha()`, `normalizarNome()` e `validarCadastro()` | A regra do recado ou do cadastro muda |
 | `src/preferencias.php` | `lerOrdem()`, `salvarOrdem()` e a lista `ORDENS` | Surge outra preferência ou outra ordem |
 | `src/formatacao.php` | Conversão de fuso e formatos de hora | O formato das datas muda |
 | `src/http.php` | `lerCampo()`, `lerId()`, `exigirPost()` e `redirecionar()` | A leitura do pedido muda |
-| `src/visao.php` | `e()`, `plural()`, `cabecalho()`, `rodape()` e `recadoNaoEncontrado()` | O esqueleto das páginas muda |
-| `src/templates/` | Topo com navegação (que muda conforme o login), rodapé, página 404 e página de erro | O esqueleto das páginas muda |
+| `src/visao.php` | `e()`, `plural()`, `cabecalho()`, `rodape()`, `recadoNaoEncontrado()` e `acessoNegado()` | O esqueleto das páginas muda |
+| `src/templates/` | Topo com navegação (que muda conforme o login), rodapé, lista de recados públicos, páginas 404, 403 e de erro | O esqueleto das páginas muda |
 | `servidor/apache.conf` | Site do Apache: porta, `DocumentRoot` em `public/` e logs | A pasta ou a porta do site muda |
 | `servidor/nginx.conf` | Site do nginx: porta, `root` em `public/` e repasse ao PHP-FPM | A pasta, a porta ou o socket do PHP-FPM muda |
 | `sql/schema.sql` | Tabelas `usuarios` e `recados`, restrições e índice | O modelo de dados muda |
